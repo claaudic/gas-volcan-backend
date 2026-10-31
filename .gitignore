@@ -1,0 +1,17 @@
+# Compilados de Maven (se generan solos al ejecutar)
+target/
+
+# Configuración personal de los editores
+.idea/
+*.iml
+.vscode/
+
+# Archivos del sistema (Mac y Windows)
+.DS_Store
+Thumbs.db
+
+# Variables de entorno con claves (por ejemplo, el secreto del JWT)
+.env
+
+# Registros
+*.log
