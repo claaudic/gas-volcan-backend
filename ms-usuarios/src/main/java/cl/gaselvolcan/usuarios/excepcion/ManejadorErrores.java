@@ -22,6 +22,11 @@ public class ManejadorErrores {
         return responder(HttpStatus.BAD_REQUEST, error.getMessage());
     }
 
+    @ExceptionHandler(CredencialesInvalidasException.class)
+    public ResponseEntity<ErrorRespuesta> credencialesInvalidas(CredencialesInvalidasException error) {
+        return responder(HttpStatus.UNAUTHORIZED, error.getMessage());
+    }
+
     // Falla alguna anotación de UsuarioSolicitud (@NotBlank, @Email, @Size...).
     // Se devuelve el mensaje del primer campo con error.
     @ExceptionHandler(MethodArgumentNotValidException.class)
