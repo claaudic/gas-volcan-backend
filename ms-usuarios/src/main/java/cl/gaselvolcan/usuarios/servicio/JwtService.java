@@ -24,7 +24,7 @@ public class JwtService {
 
     public JwtService(@Value("${jwt.secret}") String secreto,
                       @Value("${jwt.expiracion-minutos}") long minutos) {
-        // HS256 necesita una clave de al menos 32 bytes
+        // HS256 necesita una clave de al menos 32 bytes (si es más corta, falla al arrancar)
         this.clave = Keys.hmacShaKeyFor(secreto.getBytes(StandardCharsets.UTF_8));
         this.duracionMilisegundos = minutos * 60 * 1000;
     }
@@ -39,7 +39,7 @@ public class JwtService {
                 .claim("rol", usuario.getRol().name())
                 .issuedAt(ahora)
                 .expiration(vence)
-                .signWith(clave)
+                .signWith(clave, Jwts.SIG.HS256)  // algoritmo fijo: ms-tienda sabe qué esperar
                 .compact();
     }
 

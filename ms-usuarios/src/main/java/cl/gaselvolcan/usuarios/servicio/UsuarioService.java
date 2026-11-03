@@ -2,9 +2,12 @@ package cl.gaselvolcan.usuarios.servicio;
 
 import java.util.List;
 
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
+import cl.gaselvolcan.usuarios.dto.ReglasUsuario;
 import cl.gaselvolcan.usuarios.dto.UsuarioRespuesta;
 import cl.gaselvolcan.usuarios.dto.UsuarioSolicitud;
 import cl.gaselvolcan.usuarios.excepcion.RecursoNoEncontradoException;
@@ -14,12 +17,13 @@ import cl.gaselvolcan.usuarios.repositorio.UsuarioRepository;
 
 // La lógica de negocio de los usuarios. El controlador solo recibe y responde;
 // las reglas están aquí.
+// @Transactional: cada método se ejecuta como UNA sola operación en la base:
+// o se guarda todo, o no se guarda nada.
 @Service
+@Transactional
 public class UsuarioService {
 
-    // Los mismos dominios permitidos en la EP2 (Anexo 1)
-    private static final List<String> DOMINIOS_PERMITIDOS = List.of(
-            "@gaselvolcan.cl", "@duoc.cl", "@profesor.duoc.cl", "@gmail.com");
+    private static final String CORREO_REPETIDO = "Ya existe un usuario con ese correo.";
 
     private final UsuarioRepository repositorio;
     private final PasswordEncoder cifrador;
@@ -29,12 +33,14 @@ public class UsuarioService {
         this.cifrador = cifrador;
     }
 
+    @Transactional(readOnly = true)
     public List<UsuarioRespuesta> listar() {
         return repositorio.findAll().stream()
                 .map(UsuarioRespuesta::desde)
                 .toList();
     }
 
+    @Transactional(readOnly = true)
     public UsuarioRespuesta buscarPorId(Long id) {
         return UsuarioRespuesta.desde(obtener(id));
     }
@@ -44,7 +50,7 @@ public class UsuarioService {
         validarDominio(correo);
 
         if (repositorio.existsByCorreo(correo)) {
-            throw new SolicitudInvalidaException("Ya existe un usuario con ese correo.");
+            throw new SolicitudInvalidaException(CORREO_REPETIDO);
         }
         if (vacio(datos.contrasena())) {
             throw new SolicitudInvalidaException("La contraseña es obligatoria.");
@@ -52,10 +58,11 @@ public class UsuarioService {
 
         Usuario usuario = new Usuario();
         copiarDatos(datos, usuario, correo);
-        usuario.setContrasena(cifrador.encode(datos.contrasena().trim()));
+        // La contraseña no se recorta: se guarda tal como se validó
+        usuario.setContrasena(cifrador.encode(datos.contrasena()));
         usuario.setActivo(datos.activo() == null || datos.activo());
 
-        return UsuarioRespuesta.desde(repositorio.save(usuario));
+        return UsuarioRespuesta.desde(guardar(usuario));
     }
 
     public UsuarioRespuesta actualizar(Long id, UsuarioSolicitud datos) {
@@ -65,18 +72,18 @@ public class UsuarioService {
 
         // Si cambia el correo, el nuevo no puede ser de otra cuenta
         if (!correo.equals(usuario.getCorreo()) && repositorio.existsByCorreo(correo)) {
-            throw new SolicitudInvalidaException("Ya existe un usuario con ese correo.");
+            throw new SolicitudInvalidaException(CORREO_REPETIDO);
         }
 
         copiarDatos(datos, usuario, correo);
         if (!vacio(datos.contrasena())) {
-            usuario.setContrasena(cifrador.encode(datos.contrasena().trim()));
+            usuario.setContrasena(cifrador.encode(datos.contrasena()));
         }
         if (datos.activo() != null) {
             usuario.setActivo(datos.activo());
         }
 
-        return UsuarioRespuesta.desde(repositorio.save(usuario));
+        return UsuarioRespuesta.desde(guardar(usuario));
     }
 
     public void eliminar(Long id) {
@@ -86,6 +93,18 @@ public class UsuarioService {
     // =========================================
     // AYUDANTES
     // =========================================
+
+    // saveAndFlush envía el INSERT/UPDATE a MySQL en este momento.
+    // Si dos personas se registran a la vez con el mismo correo, la que llega segunda
+    // pasa el existsByCorreo pero MySQL la rechaza por la columna única: aquí se
+    // convierte ese rechazo en un 400 con el mensaje de siempre.
+    private Usuario guardar(Usuario usuario) {
+        try {
+            return repositorio.saveAndFlush(usuario);
+        } catch (DataIntegrityViolationException error) {
+            throw new SolicitudInvalidaException(CORREO_REPETIDO);
+        }
+    }
 
     private Usuario obtener(Long id) {
         return repositorio.findById(id)
@@ -108,7 +127,7 @@ public class UsuarioService {
     }
 
     private void validarDominio(String correo) {
-        boolean permitido = DOMINIOS_PERMITIDOS.stream().anyMatch(correo::endsWith);
+        boolean permitido = ReglasUsuario.DOMINIOS_PERMITIDOS.stream().anyMatch(correo::endsWith);
         if (!permitido) {
             throw new SolicitudInvalidaException(
                     "Usa un correo @gaselvolcan.cl si es del equipo, o @gmail.com si es cliente.");
