@@ -7,11 +7,13 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import cl.gaselvolcan.usuarios.dto.PerfilSolicitud;
 import cl.gaselvolcan.usuarios.dto.ReglasUsuario;
 import cl.gaselvolcan.usuarios.dto.UsuarioRespuesta;
 import cl.gaselvolcan.usuarios.dto.UsuarioSolicitud;
 import cl.gaselvolcan.usuarios.excepcion.RecursoNoEncontradoException;
 import cl.gaselvolcan.usuarios.excepcion.SolicitudInvalidaException;
+import cl.gaselvolcan.usuarios.modelo.Rol;
 import cl.gaselvolcan.usuarios.modelo.Usuario;
 import cl.gaselvolcan.usuarios.repositorio.UsuarioRepository;
 
@@ -45,6 +47,14 @@ public class UsuarioService {
         return UsuarioRespuesta.desde(obtener(id));
     }
 
+    // Para la despachadora: a quién puede asignar un pedido
+    @Transactional(readOnly = true)
+    public List<UsuarioRespuesta> listarRepartidores() {
+        return repositorio.findByRolAndActivoTrue(Rol.REPARTIDOR).stream()
+                .map(UsuarioRespuesta::desde)
+                .toList();
+    }
+
     public UsuarioRespuesta crear(UsuarioSolicitud datos) {
         String correo = limpiarCorreo(datos.correo());
         validarDominio(correo);
@@ -65,10 +75,15 @@ public class UsuarioService {
         return UsuarioRespuesta.desde(guardar(usuario));
     }
 
-    public UsuarioRespuesta actualizar(Long id, UsuarioSolicitud datos) {
+    // correoActual: quién está haciendo el cambio (sale de su token)
+    public UsuarioRespuesta actualizar(Long id, UsuarioSolicitud datos, String correoActual) {
         Usuario usuario = obtener(id);
         String correo = limpiarCorreo(datos.correo());
         validarDominio(correo);
+
+        if (usuario.getCorreo().equals(correoActual)) {
+            validarCambiosEnCuentaPropia(usuario, datos, correo);
+        }
 
         // Si cambia el correo, el nuevo no puede ser de otra cuenta
         if (!correo.equals(usuario.getCorreo()) && repositorio.existsByCorreo(correo)) {
@@ -86,8 +101,35 @@ public class UsuarioService {
         return UsuarioRespuesta.desde(guardar(usuario));
     }
 
-    public void eliminar(Long id) {
-        repositorio.delete(obtener(id));
+    public void eliminar(Long id, String correoActual) {
+        Usuario usuario = obtener(id);
+        if (usuario.getCorreo().equals(correoActual)) {
+            throw new SolicitudInvalidaException("No puedes eliminar tu propia cuenta.");
+        }
+        repositorio.delete(usuario);
+    }
+
+    // =========================================
+    // MI PERFIL (cualquier usuario con sesión, sobre su propia cuenta)
+    // =========================================
+
+    @Transactional(readOnly = true)
+    public UsuarioRespuesta buscarPorCorreo(String correo) {
+        return UsuarioRespuesta.desde(obtenerPorCorreo(correo));
+    }
+
+    public UsuarioRespuesta actualizarPerfil(String correo, PerfilSolicitud datos) {
+        Usuario usuario = obtenerPorCorreo(correo);
+        usuario.setNombre(datos.nombre().trim());
+        usuario.setApellidos(datos.apellidos().trim());
+        usuario.setTelefono(textoOpcional(datos.telefono()));
+        usuario.setComuna(textoOpcional(datos.comuna()));
+        usuario.setDireccion(textoOpcional(datos.direccion()));
+        return UsuarioRespuesta.desde(guardar(usuario));
+    }
+
+    public void eliminarCuentaPropia(String correo) {
+        repositorio.delete(obtenerPorCorreo(correo));
     }
 
     // =========================================
@@ -109,6 +151,24 @@ public class UsuarioService {
     private Usuario obtener(Long id) {
         return repositorio.findById(id)
                 .orElseThrow(() -> new RecursoNoEncontradoException("No existe un usuario con id " + id + "."));
+    }
+
+    private Usuario obtenerPorCorreo(String correo) {
+        return repositorio.findByCorreo(correo)
+                .orElseThrow(() -> new RecursoNoEncontradoException("Tu cuenta ya no existe."));
+    }
+
+    // Las mismas reglas de la EP2: el administrador no puede quitarse el acceso a sí mismo
+    private void validarCambiosEnCuentaPropia(Usuario actual, UsuarioSolicitud datos, String correoNuevo) {
+        if (!correoNuevo.equals(actual.getCorreo())) {
+            throw new SolicitudInvalidaException("No puedes cambiar el correo de tu propia cuenta.");
+        }
+        if (datos.rol() != actual.getRol()) {
+            throw new SolicitudInvalidaException("No puedes cambiar el rol de tu propia cuenta.");
+        }
+        if (Boolean.FALSE.equals(datos.activo())) {
+            throw new SolicitudInvalidaException("No puedes desactivar tu propia cuenta.");
+        }
     }
 
     private void copiarDatos(UsuarioSolicitud datos, Usuario usuario, String correo) {

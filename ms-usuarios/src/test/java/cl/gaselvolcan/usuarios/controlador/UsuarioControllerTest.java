@@ -112,7 +112,7 @@ class UsuarioControllerTest {
 
     @Test
     void eliminarResponde204() throws Exception {
-        mvc.perform(delete("/api/v1/usuarios/1"))
+        mvc.perform(delete("/api/v1/usuarios/1").principal(() -> "admin@gaselvolcan.cl"))
                 .andExpect(status().isNoContent());
     }
 }
