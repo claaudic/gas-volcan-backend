@@ -2,14 +2,13 @@ package cl.gaselvolcan.usuarios.servicio;
 
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import cl.gaselvolcan.usuarios.dto.LoginRespuesta;
 import cl.gaselvolcan.usuarios.dto.LoginSolicitud;
 import cl.gaselvolcan.usuarios.dto.RegistroSolicitud;
 import cl.gaselvolcan.usuarios.dto.UsuarioRespuesta;
-import cl.gaselvolcan.usuarios.dto.UsuarioSolicitud;
 import cl.gaselvolcan.usuarios.excepcion.CredencialesInvalidasException;
-import cl.gaselvolcan.usuarios.modelo.Rol;
 import cl.gaselvolcan.usuarios.modelo.Usuario;
 import cl.gaselvolcan.usuarios.repositorio.UsuarioRepository;
 import io.jsonwebtoken.Claims;
@@ -26,24 +25,31 @@ public class AuthService {
     private final JwtService jwt;
     private final UsuarioService usuarios;
 
+    // Un hash de relleno: si el correo no existe, igual se compara contra él.
+    // Así el login tarda lo mismo exista o no el correo, y no se puede adivinar por el tiempo.
+    private final String hashDeRelleno;
+
     public AuthService(UsuarioRepository repositorio, PasswordEncoder cifrador,
                        JwtService jwt, UsuarioService usuarios) {
         this.repositorio = repositorio;
         this.cifrador = cifrador;
         this.jwt = jwt;
         this.usuarios = usuarios;
+        this.hashDeRelleno = cifrador.encode("relleno-para-igualar-tiempos");
     }
 
+    @Transactional(readOnly = true)
     public LoginRespuesta login(LoginSolicitud datos) {
         String correo = datos.correo().trim().toLowerCase();
+        Usuario usuario = repositorio.findByCorreo(correo).orElse(null);
+
+        // BCrypt cifra lo escrito y lo compara con lo guardado
+        String hashGuardado = usuario != null ? usuario.getContrasena() : hashDeRelleno;
+        boolean coincide = cifrador.matches(datos.contrasena(), hashGuardado);
 
         // Mismo mensaje si no existe el correo o si la contraseña falla:
         // así no se revela qué correos están registrados.
-        Usuario usuario = repositorio.findByCorreo(correo)
-                .orElseThrow(() -> new CredencialesInvalidasException(CREDENCIALES_MALAS));
-
-        // BCrypt cifra lo escrito y lo compara con lo guardado
-        if (!cifrador.matches(datos.contrasena().trim(), usuario.getContrasena())) {
+        if (usuario == null || !coincide) {
             throw new CredencialesInvalidasException(CREDENCIALES_MALAS);
         }
         if (!usuario.isActivo()) {
@@ -54,6 +60,7 @@ public class AuthService {
     }
 
     // Recibe un token que todavía no vence y entrega uno nuevo con 30 minutos más
+    @Transactional(readOnly = true)
     public LoginRespuesta renovar(String encabezado) {
         if (encabezado == null || !encabezado.startsWith("Bearer ")) {
             throw new CredencialesInvalidasException("Falta el token.");
@@ -76,19 +83,7 @@ public class AuthService {
 
     // Registro público: el rol siempre es CLIENTE, venga lo que venga
     public UsuarioRespuesta registrar(RegistroSolicitud datos) {
-        UsuarioSolicitud cliente = new UsuarioSolicitud(
-                null,
-                datos.nombre(),
-                datos.apellidos(),
-                datos.correo(),
-                datos.contrasena(),
-                Rol.CLIENTE,
-                datos.telefono(),
-                datos.comuna(),
-                datos.direccion(),
-                true
-        );
-        return usuarios.crear(cliente);
+        return usuarios.crear(datos.comoCliente());
     }
 
     private LoginRespuesta respuestaCon(Usuario usuario) {
