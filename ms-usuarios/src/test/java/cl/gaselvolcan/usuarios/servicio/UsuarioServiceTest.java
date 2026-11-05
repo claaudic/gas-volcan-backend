@@ -19,6 +19,7 @@ import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
+import cl.gaselvolcan.usuarios.dto.PerfilSolicitud;
 import cl.gaselvolcan.usuarios.dto.UsuarioRespuesta;
 import cl.gaselvolcan.usuarios.dto.UsuarioSolicitud;
 import cl.gaselvolcan.usuarios.excepcion.RecursoNoEncontradoException;
@@ -41,6 +42,8 @@ class UsuarioServiceTest {
         // saveAndFlush devuelve el mismo usuario que recibe
         when(repositorio.saveAndFlush(any(Usuario.class))).thenAnswer(llamada -> llamada.getArgument(0));
     }
+
+    private static final String ADMIN = "admin@gaselvolcan.cl";
 
     private UsuarioSolicitud solicitud(String run, String correo, String contrasena, Boolean activo) {
         return new UsuarioSolicitud(run, "Ana", "Soto", correo, contrasena, Rol.CLIENTE, null, null, null, activo);
@@ -131,7 +134,7 @@ class UsuarioServiceTest {
         String hashAnterior = ana.getContrasena();
         when(repositorio.findById(6L)).thenReturn(Optional.of(ana));
 
-        servicio.actualizar(6L, solicitud(null, "ana@gmail.com", null, false));
+        servicio.actualizar(6L, solicitud(null, "ana@gmail.com", null, false), ADMIN);
 
         assertEquals(hashAnterior, ana.getContrasena());
         assertFalse(ana.isActivo());
@@ -144,7 +147,7 @@ class UsuarioServiceTest {
         when(repositorio.existsByCorreo("camila@gmail.com")).thenReturn(true);
 
         assertThrows(SolicitudInvalidaException.class,
-                () -> servicio.actualizar(6L, solicitud(null, "camila@gmail.com", null, null)));
+                () -> servicio.actualizar(6L, solicitud(null, "camila@gmail.com", null, null), ADMIN));
     }
 
     // --- No existe → 404 ---
@@ -155,7 +158,69 @@ class UsuarioServiceTest {
 
         assertThrows(RecursoNoEncontradoException.class, () -> servicio.buscarPorId(99L));
         assertThrows(RecursoNoEncontradoException.class,
-                () -> servicio.actualizar(99L, solicitud(null, "ana@gmail.com", null, null)));
-        assertThrows(RecursoNoEncontradoException.class, () -> servicio.eliminar(99L));
+                () -> servicio.actualizar(99L, solicitud(null, "ana@gmail.com", null, null), ADMIN));
+        assertThrows(RecursoNoEncontradoException.class, () -> servicio.eliminar(99L, ADMIN));
+    }
+
+    // --- Cuenta propia del administrador (mismas reglas de la EP2) ---
+
+    private Usuario sofia() {
+        return new Usuario("Sofía", "Pérez", ADMIN, "x", Rol.ADMINISTRADOR);
+    }
+
+    private UsuarioSolicitud cambioDeSofia(String correo, Rol rol, Boolean activo) {
+        return new UsuarioSolicitud(null, "Sofía", "Pérez", correo, null, rol, null, null, null, activo);
+    }
+
+    private void esperarError(String mensaje, Runnable accion) {
+        SolicitudInvalidaException error = assertThrows(SolicitudInvalidaException.class, accion::run);
+        assertEquals(mensaje, error.getMessage());
+    }
+
+    @Test
+    void elAdministradorNoPuedeEliminarSuPropiaCuenta() {
+        when(repositorio.findById(1L)).thenReturn(Optional.of(sofia()));
+
+        esperarError("No puedes eliminar tu propia cuenta.", () -> servicio.eliminar(1L, ADMIN));
+        verify(repositorio, never()).delete(any(Usuario.class));
+    }
+
+    @Test
+    void elAdministradorNoPuedeCambiarSuRolCorreoNiDesactivarse() {
+        when(repositorio.findById(1L)).thenReturn(Optional.of(sofia()));
+
+        esperarError("No puedes cambiar el rol de tu propia cuenta.",
+                () -> servicio.actualizar(1L, cambioDeSofia(ADMIN, Rol.CLIENTE, null), ADMIN));
+        esperarError("No puedes cambiar el correo de tu propia cuenta.",
+                () -> servicio.actualizar(1L, cambioDeSofia("sofia@gaselvolcan.cl", Rol.ADMINISTRADOR, null), ADMIN));
+        esperarError("No puedes desactivar tu propia cuenta.",
+                () -> servicio.actualizar(1L, cambioDeSofia(ADMIN, Rol.ADMINISTRADOR, false), ADMIN));
+    }
+
+    @Test
+    void elAdministradorSiPuedeEditarSusOtrosDatos() {
+        Usuario sofia = sofia();
+        when(repositorio.findById(1L)).thenReturn(Optional.of(sofia));
+
+        servicio.actualizar(1L, cambioDeSofia(ADMIN, Rol.ADMINISTRADOR, true), ADMIN);
+
+        assertEquals(Rol.ADMINISTRADOR, sofia.getRol());
+    }
+
+    // --- Mi perfil ---
+
+    @Test
+    void elPerfilSoloCambiaNombreTelefonoComunaYDireccion() {
+        Usuario camila = new Usuario("Camila", "Rojas", "camila@gmail.com", "x", Rol.CLIENTE);
+        when(repositorio.findByCorreo("camila@gmail.com")).thenReturn(Optional.of(camila));
+
+        servicio.actualizarPerfil("camila@gmail.com",
+                new PerfilSolicitud(" Cami ", "Rojas", "+56 9 1234 5678", "Chillán", ""));
+
+        assertEquals("Cami", camila.getNombre());
+        assertEquals("Chillán", camila.getComuna());
+        assertEquals(null, camila.getDireccion());
+        assertEquals("camila@gmail.com", camila.getCorreo());
+        assertEquals(Rol.CLIENTE, camila.getRol());
     }
 }

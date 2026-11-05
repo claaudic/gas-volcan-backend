@@ -57,13 +57,24 @@ Con MySQL encendido, desde la carpeta `ms-usuarios`:
 
 Rutas principales:
 
-| Método | Ruta | Qué hace |
-|---|---|---|
-| POST | `/api/v1/auth/login` | Inicia sesión y entrega el token JWT |
-| POST | `/api/v1/auth/renovar` | Entrega un token nuevo (encabezado `Authorization: Bearer <token>`) |
-| POST | `/api/v1/auth/registro` | Registro público (siempre rol CLIENTE) |
-| GET · POST | `/api/v1/usuarios` | Listar y crear usuarios |
-| GET · PUT · DELETE | `/api/v1/usuarios/{id}` | Buscar, actualizar y eliminar un usuario |
+| Método | Ruta | Qué hace | Quién puede |
+|---|---|---|---|
+| POST | `/api/v1/auth/login` | Inicia sesión y entrega el token JWT | Todos |
+| POST | `/api/v1/auth/renovar` | Entrega un token nuevo (encabezado `Authorization: Bearer <token>`) | Todos (con token vigente) |
+| POST | `/api/v1/auth/registro` | Registro público (siempre rol CLIENTE) | Todos |
+| GET · PUT | `/api/v1/usuarios/yo` | Ver y editar mi perfil (nombre, apellidos, teléfono, comuna, dirección) | Cualquiera con sesión |
+| DELETE | `/api/v1/usuarios/yo` | Eliminar mi cuenta | CLIENTE |
+| GET | `/api/v1/usuarios/repartidores` | Repartidores activos | ADMINISTRADOR, DESPACHADORA |
+| GET · POST | `/api/v1/usuarios` | Listar y crear usuarios | ADMINISTRADOR |
+| GET · PUT · DELETE | `/api/v1/usuarios/{id}` | Buscar, actualizar y eliminar un usuario | ADMINISTRADOR |
+
+Las rutas protegidas piden el encabezado `Authorization: Bearer <token>`:
+
+- Sin token, o con un token falso o vencido → **401**
+- Con un rol que no corresponde → **403**
+- Como en la EP2, el administrador no puede eliminar, desactivar ni cambiar el rol o el correo de su propia cuenta → **400**
+
+Los errores siempre responden `{ "estado": ..., "mensaje": "..." }`.
 
 Cuentas de demostración (se cargan solas la primera vez):
 
@@ -83,3 +94,10 @@ Los tokens se firman con la variable de entorno `JWT_SECRET` (al menos 32 caract
 export JWT_SECRET="una-clave-larga-de-al-menos-32-caracteres"
 ```
 
+### CORS
+
+La API acepta llamadas desde el frontend en `http://localhost:5173` (Vite). Para permitir otras páginas, usar la variable de entorno `CORS_ORIGENES`, separadas por coma:
+
+```bash
+export CORS_ORIGENES="http://localhost:5173,http://localhost:4173"
+```
