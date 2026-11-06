@@ -1,0 +1,163 @@
+package cl.gaselvolcan.ms_pedidos.service;
+
+import java.math.BigDecimal;
+import java.math.RoundingMode;
+import java.util.List;
+import java.util.LinkedHashMap;
+import java.util.Map;
+import cl.gaselvolcan.ms_pedidos.client.CatalogoClient;
+import cl.gaselvolcan.ms_pedidos.dto.catalogo.*;
+import cl.gaselvolcan.ms_pedidos.exception.RespuestaCatalogoInvalidaException;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import jakarta.validation.Validator;
+import cl.gaselvolcan.ms_pedidos.dto.BoletaRespuesta;
+import cl.gaselvolcan.ms_pedidos.dto.BoletaSolicitud;
+import cl.gaselvolcan.ms_pedidos.exception.RecursoNoEncontradoException;
+import cl.gaselvolcan.ms_pedidos.exception.SolicitudInvalidaException;
+import cl.gaselvolcan.ms_pedidos.model.Boleta;
+import cl.gaselvolcan.ms_pedidos.model.DetalleBoleta;
+import cl.gaselvolcan.ms_pedidos.repository.BoletaRepository;
+
+@Service
+@Transactional
+public class BoletaService {
+    private static final BigDecimal LIMITE_TOTAL = new BigDecimal("100000000000000000");
+    private final BoletaRepository repositorio;
+    private final Validator validator;
+
+    private final CatalogoClient catalogo;
+
+    public BoletaService(BoletaRepository repositorio, Validator validator, CatalogoClient catalogo) {
+        this.catalogo = catalogo;
+        this.repositorio = repositorio;
+        this.validator = validator;
+    }
+
+    @Transactional(readOnly = true)
+    public List<BoletaRespuesta> listar() {
+        return repositorio.findAll().stream().map(BoletaRespuesta::desde).toList();
+    }
+
+    @Transactional(readOnly = true)
+    public BoletaRespuesta buscarPorId(Long id) {
+        return BoletaRespuesta.desde(obtener(id));
+    }
+
+    public BoletaRespuesta crear(BoletaSolicitud datos) {
+        var precios = validarYConsultarPrecios(datos);
+        BigDecimal total = calcularTotal(datos, precios);
+        Boleta boleta = new Boleta();
+        copiar(datos, total, precios, boleta);
+        return BoletaRespuesta.desde(repositorio.saveAndFlush(boleta));
+    }
+
+    public BoletaRespuesta actualizar(Long id, BoletaSolicitud datos) {
+        Boleta boleta = obtener(id);
+        // Validar antes de alterar una entidad administrada por JPA.
+        var precios = validarYConsultarPrecios(datos);
+        BigDecimal total = calcularTotal(datos, precios);
+        copiar(datos, total, precios, boleta);
+        return BoletaRespuesta.desde(repositorio.saveAndFlush(boleta));
+    }
+
+    public void eliminar(Long id) {
+        repositorio.delete(obtener(id));
+        repositorio.flush();
+    }
+
+    private Boleta obtener(Long id) {
+        if (id == null || id <= 0) {
+            throw new SolicitudInvalidaException("El id debe ser positivo.");
+        }
+        return repositorio.findById(id).orElseThrow(
+                () -> new RecursoNoEncontradoException("No existe una boleta con id " + id + "."));
+    }
+
+    private Map<Long, BigDecimal> validarYConsultarPrecios(BoletaSolicitud datos) {
+        if (datos == null) {
+            throw new SolicitudInvalidaException("Los datos de la boleta son obligatorios.");
+        }
+        var errores = validator.validate(datos);
+        if (!errores.isEmpty()) {
+            String mensaje = errores.stream().map(v -> v.getPropertyPath() + ": " + v.getMessage())
+                    .sorted().findFirst().orElseThrow();
+            throw new SolicitudInvalidaException(mensaje);
+        }
+        // Acumular cantidades por ID impide eludir stock repartiendo un producto en varias lineas.
+        Map<Long, Integer> cantidades = new LinkedHashMap<>();
+        for (var detalle : datos.detalles()) {
+            try {
+                cantidades.merge(detalle.productoId(), detalle.cantidad(), Math::addExact);
+            } catch (ArithmeticException error) {
+                throw new SolicitudInvalidaException("La cantidad acumulada del producto excede el limite permitido.");
+            }
+        }
+        Map<Long, BigDecimal> precios = new LinkedHashMap<>();
+        cantidades.forEach((id, cantidad) -> {
+            var producto = catalogo.consultarProducto(id);
+            if (producto == null || !id.equals(producto.id()) || producto.codigo() == null
+                    || producto.codigo().isBlank() || producto.activo() == null) {
+                throw respuestaInvalida();
+            }
+            if (!producto.activo()) {
+                throw new SolicitudInvalidaException("El producto " + id + " esta inactivo.");
+            }
+            validarPrecio(producto.precioResidencial());
+            if (producto.precioOferta() != null) validarPrecio(producto.precioOferta());
+            var disponibilidad = catalogo.consultarDisponibilidad(id, cantidad);
+            validarDisponibilidad(id, cantidad, producto.codigo(), disponibilidad);
+            // Tarifa actual de la tienda: oferta publicada o, si no existe, residencial.
+            precios.put(id, producto.precioOferta() != null ? producto.precioOferta() : producto.precioResidencial());
+        });
+        return precios;
+    }
+
+    private void validarDisponibilidad(Long id, int cantidad, String codigo, DisponibilidadCatalogoRespuesta d) {
+        if (d == null || !id.equals(d.productoId()) || !codigo.equals(d.codigo())
+                || !Integer.valueOf(cantidad).equals(d.cantidadSolicitada()) || d.stock() == null
+                || d.stock() < 0 || d.activo() == null || d.disponible() == null
+                || d.disponible() != (d.activo() && d.stock() >= cantidad)) {
+            throw respuestaInvalida();
+        }
+        if (!d.activo()) throw new SolicitudInvalidaException("El producto " + id + " esta inactivo.");
+        if (!d.disponible()) throw new SolicitudInvalidaException("Stock insuficiente para el producto " + id + ".");
+    }
+
+    private void validarPrecio(BigDecimal precio) {
+        if (precio == null || precio.signum() < 0 || precio.compareTo(LIMITE_TOTAL) >= 0
+                || Math.max(0, precio.stripTrailingZeros().scale()) > 2) {
+            throw respuestaInvalida();
+        }
+    }
+
+    private RespuestaCatalogoInvalidaException respuestaInvalida() {
+        return new RespuestaCatalogoInvalidaException("El catalogo devolvio datos incompletos o inconsistentes.");
+    }
+
+    private BigDecimal calcularTotal(BoletaSolicitud datos, Map<Long, BigDecimal> precios) {
+        BigDecimal total = datos.detalles().stream()
+                .map(d -> precios.get(d.productoId()).multiply(BigDecimal.valueOf(d.cantidad())))
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        if (total.compareTo(LIMITE_TOTAL) >= 0) {
+            throw new SolicitudInvalidaException("El total excede el importe maximo permitido.");
+        }
+        return total.setScale(2, RoundingMode.UNNECESSARY);
+    }
+
+    private void copiar(BoletaSolicitud datos, BigDecimal total, Map<Long, BigDecimal> precios, Boleta boleta) {
+        boleta.setClienteId(datos.clienteId());
+        boleta.setDireccion(datos.direccion().trim());
+        boleta.setComuna(datos.comuna().trim());
+        boleta.setEstado(datos.estado().trim());
+        boleta.setRepartidorId(datos.repartidorId());
+        boleta.setFecha(datos.fecha());
+        boleta.setTotal(total);
+        for (var detalle : List.copyOf(boleta.getDetalles())) {
+            boleta.quitarDetalle(detalle);
+        }
+        for (var linea : datos.detalles()) {
+            boleta.agregarDetalle(new DetalleBoleta(linea.productoId(), linea.cantidad(), precios.get(linea.productoId()).setScale(2, RoundingMode.UNNECESSARY)));
+        }
+    }
+}
