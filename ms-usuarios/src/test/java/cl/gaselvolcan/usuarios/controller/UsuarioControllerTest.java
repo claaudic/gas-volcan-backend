@@ -1,4 +1,4 @@
-package cl.gaselvolcan.usuarios.controlador;
+package cl.gaselvolcan.usuarios.controller;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
@@ -17,10 +17,10 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
 import cl.gaselvolcan.usuarios.dto.UsuarioRespuesta;
-import cl.gaselvolcan.usuarios.excepcion.ManejadorErrores;
-import cl.gaselvolcan.usuarios.excepcion.RecursoNoEncontradoException;
-import cl.gaselvolcan.usuarios.modelo.Rol;
-import cl.gaselvolcan.usuarios.servicio.UsuarioService;
+import cl.gaselvolcan.usuarios.exception.ManejadorErrores;
+import cl.gaselvolcan.usuarios.exception.RecursoNoEncontradoException;
+import cl.gaselvolcan.usuarios.model.Rol;
+import cl.gaselvolcan.usuarios.service.UsuarioService;
 
 // Pruebas de las rutas: que cada caso responda el código HTTP correcto
 // y que los errores vengan SIEMPRE como { "estado": ..., "mensaje": "..." }.

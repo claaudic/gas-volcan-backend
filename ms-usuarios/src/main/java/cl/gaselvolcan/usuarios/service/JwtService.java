@@ -1,4 +1,4 @@
-package cl.gaselvolcan.usuarios.servicio;
+package cl.gaselvolcan.usuarios.service;
 
 import java.nio.charset.StandardCharsets;
 import java.util.Date;
@@ -8,7 +8,7 @@ import javax.crypto.SecretKey;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
-import cl.gaselvolcan.usuarios.modelo.Usuario;
+import cl.gaselvolcan.usuarios.model.Usuario;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.JwtException;
 import io.jsonwebtoken.Jwts;

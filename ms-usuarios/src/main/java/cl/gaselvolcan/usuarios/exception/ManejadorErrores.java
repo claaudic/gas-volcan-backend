@@ -1,4 +1,4 @@
-package cl.gaselvolcan.usuarios.excepcion;
+package cl.gaselvolcan.usuarios.exception;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;

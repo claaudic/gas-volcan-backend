@@ -1,4 +1,4 @@
-package cl.gaselvolcan.usuarios.servicio;
+package cl.gaselvolcan.usuarios.service;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -6,8 +6,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import org.junit.jupiter.api.Test;
 
-import cl.gaselvolcan.usuarios.modelo.Rol;
-import cl.gaselvolcan.usuarios.modelo.Usuario;
+import cl.gaselvolcan.usuarios.model.Rol;
+import cl.gaselvolcan.usuarios.model.Usuario;
 import io.jsonwebtoken.Claims;
 
 // Pruebas del token: generar, verificar y rechazar tokens malos.

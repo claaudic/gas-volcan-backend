@@ -6,15 +6,28 @@ Backend de la tienda en línea **Gas El Volcán** (DSY1104 Desarrollo FullStack 
 
 El frontend (React + Vite) está en otro repositorio y se conecta a este backend mediante una API REST.
 
+## Arquitectura
+
+Tres microservicios de negocio y un API Gateway. Cada microservicio tiene **su propia base de datos** y no lee las tablas de otro.
+
+| Aplicación | Puerto | Responsabilidad | Base de datos |
+|---|---:|---|---|
+| gateway | 8080 | Entrada única del frontend: reparte las rutas y maneja CORS | — |
+| ms-usuarios | 8081 | Usuarios, login, JWT y roles | `volcan_usuarios` |
+| ms-catalogo | 8082 | Categorías, productos y stock | `volcan_catalogo` |
+| ms-pedidos | 8083 | Boletas, detalle, estados y repartidor | `volcan_pedidos` |
+
 ## Estructura
 
 ```
 gas-volcan-backend/
 ├── docker-compose.yml      → MySQL 8.4 en Docker
 ├── mysql-init/
-│   └── 01-bases.sql        → crea las bases volcan_usuarios y volcan_tienda
+│   └── 01-bases.sql        → crea las 3 bases: volcan_usuarios, volcan_catalogo y volcan_pedidos
+├── gateway/                → (en construcción) API Gateway · puerto 8080
 ├── ms-usuarios/            → usuarios, login y JWT · puerto 8081
-└── ms-tienda/              → (en construcción) categorías, productos y boletas · puerto 8082
+├── ms-catalogo/            → (en construcción) categorías y productos · puerto 8082
+└── ms-pedidos/             → (en construcción) boletas y su detalle · puerto 8083
 ```
 
 ## Requisitos
@@ -30,7 +43,7 @@ Desde la carpeta `gas-volcan-backend`:
 docker compose up -d
 ```
 
-Esto descarga MySQL 8.4 (solo la primera vez), crea el contenedor `volcan-mysql` en el puerto `3306` y crea las bases `volcan_usuarios` y `volcan_tienda`.
+Esto descarga MySQL 8.4 (solo la primera vez), crea el contenedor `volcan-mysql` en el puerto `3306` y crea las bases `volcan_usuarios`, `volcan_catalogo` y `volcan_pedidos`.
 
 Comprobar que está funcionando:
 
@@ -38,6 +51,12 @@ Comprobar que está funcionando:
 docker ps
 docker exec -it volcan-mysql mysql -uvolcan -pvolcan123 -e "SHOW DATABASES;"
 ```
+
+> `mysql-init/01-bases.sql` solo se ejecuta la **primera vez** que se crea el contenedor. Si ya lo tenías creado de antes y te falta alguna base, ejecútalo a mano (no borra datos):
+>
+> ```bash
+> docker exec -i volcan-mysql mysql -uroot -proot123 < mysql-init/01-bases.sql
+> ```
 
 Apagar (los datos se mantienen en el volumen `volcan-datos`):
 

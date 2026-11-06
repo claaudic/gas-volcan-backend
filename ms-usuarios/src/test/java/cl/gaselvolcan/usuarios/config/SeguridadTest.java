@@ -23,13 +23,13 @@ import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
-import cl.gaselvolcan.usuarios.controlador.AuthController;
-import cl.gaselvolcan.usuarios.controlador.UsuarioController;
-import cl.gaselvolcan.usuarios.modelo.Rol;
-import cl.gaselvolcan.usuarios.modelo.Usuario;
-import cl.gaselvolcan.usuarios.servicio.AuthService;
-import cl.gaselvolcan.usuarios.servicio.JwtService;
-import cl.gaselvolcan.usuarios.servicio.UsuarioService;
+import cl.gaselvolcan.usuarios.controller.AuthController;
+import cl.gaselvolcan.usuarios.controller.UsuarioController;
+import cl.gaselvolcan.usuarios.model.Rol;
+import cl.gaselvolcan.usuarios.model.Usuario;
+import cl.gaselvolcan.usuarios.service.AuthService;
+import cl.gaselvolcan.usuarios.service.JwtService;
+import cl.gaselvolcan.usuarios.service.UsuarioService;
 
 // Pruebas de SeguridadConfig con tokens de verdad: sin token → 401,
 // rol equivocado → 403, rol correcto → 200. Los servicios son falsos (sin MySQL).

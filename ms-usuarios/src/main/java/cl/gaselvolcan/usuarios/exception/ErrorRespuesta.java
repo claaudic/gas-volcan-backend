@@ -1,4 +1,4 @@
-package cl.gaselvolcan.usuarios.excepcion;
+package cl.gaselvolcan.usuarios.exception;
 
 // Formato de error acordado con Nicolás: { "estado": 404, "mensaje": "..." }
 public record ErrorRespuesta(int estado, String mensaje) {

@@ -1,4 +1,4 @@
-package cl.gaselvolcan.usuarios.servicio;
+package cl.gaselvolcan.usuarios.service;
 
 import java.util.List;
 
@@ -11,11 +11,11 @@ import cl.gaselvolcan.usuarios.dto.PerfilSolicitud;
 import cl.gaselvolcan.usuarios.dto.ReglasUsuario;
 import cl.gaselvolcan.usuarios.dto.UsuarioRespuesta;
 import cl.gaselvolcan.usuarios.dto.UsuarioSolicitud;
-import cl.gaselvolcan.usuarios.excepcion.RecursoNoEncontradoException;
-import cl.gaselvolcan.usuarios.excepcion.SolicitudInvalidaException;
-import cl.gaselvolcan.usuarios.modelo.Rol;
-import cl.gaselvolcan.usuarios.modelo.Usuario;
-import cl.gaselvolcan.usuarios.repositorio.UsuarioRepository;
+import cl.gaselvolcan.usuarios.exception.RecursoNoEncontradoException;
+import cl.gaselvolcan.usuarios.exception.SolicitudInvalidaException;
+import cl.gaselvolcan.usuarios.model.Rol;
+import cl.gaselvolcan.usuarios.model.Usuario;
+import cl.gaselvolcan.usuarios.repository.UsuarioRepository;
 
 // La lógica de negocio de los usuarios. El controlador solo recibe y responde;
 // las reglas están aquí.

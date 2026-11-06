@@ -1,4 +1,4 @@
-package cl.gaselvolcan.usuarios.servicio;
+package cl.gaselvolcan.usuarios.service;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -19,10 +19,10 @@ import cl.gaselvolcan.usuarios.dto.LoginRespuesta;
 import cl.gaselvolcan.usuarios.dto.LoginSolicitud;
 import cl.gaselvolcan.usuarios.dto.RegistroSolicitud;
 import cl.gaselvolcan.usuarios.dto.UsuarioSolicitud;
-import cl.gaselvolcan.usuarios.excepcion.CredencialesInvalidasException;
-import cl.gaselvolcan.usuarios.modelo.Rol;
-import cl.gaselvolcan.usuarios.modelo.Usuario;
-import cl.gaselvolcan.usuarios.repositorio.UsuarioRepository;
+import cl.gaselvolcan.usuarios.exception.CredencialesInvalidasException;
+import cl.gaselvolcan.usuarios.model.Rol;
+import cl.gaselvolcan.usuarios.model.Usuario;
+import cl.gaselvolcan.usuarios.repository.UsuarioRepository;
 
 // Pruebas del login, la renovación y el registro.
 // El repositorio es un "mock": un repositorio falso que responde lo que le indicamos, sin MySQL.
