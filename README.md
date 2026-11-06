@@ -71,8 +71,11 @@ docker compose stop
 Con MySQL encendido, desde la carpeta `ms-usuarios`:
 
 ```bash
+cp .env.example .env     # solo la primera vez; luego escribir la clave real en .env
 ./mvnw spring-boot:run
 ```
+
+La contraseña de la base no está escrita en el código: se lee de `MYSQL_PASSWORD`, en el archivo `ms-usuarios/.env` (que no se sube a GitHub) o en una variable de entorno. Para otro MySQL (por ejemplo, Laragon) también se pueden cambiar `USUARIOS_DB_URL` y `USUARIOS_DB_USERNAME`.
 
 Rutas principales:
 
