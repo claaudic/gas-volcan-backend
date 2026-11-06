@@ -8,9 +8,9 @@ import org.junit.jupiter.api.*;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import jakarta.validation.Validation;
 import jakarta.validation.ValidatorFactory;
-import cl.gaselvolcan.ms_catalogo.modelo.*;
-import cl.gaselvolcan.ms_catalogo.repositorio.*;
-import cl.gaselvolcan.ms_catalogo.servicio.*;
+import cl.gaselvolcan.ms_catalogo.model.*;
+import cl.gaselvolcan.ms_catalogo.repository.*;
+import cl.gaselvolcan.ms_catalogo.service.*;
 
 class DatosInicialesTest {
     static ValidatorFactory factory;
@@ -105,10 +105,10 @@ class DatosInicialesTest {
         verify(productos, times(15)).saveAndFlush(any());
         verify(categorias, times(4)).saveAndFlush(any());
     }
-    @Test void requiereActivacionExplicita() {
+    @Test void habilitadoPorDefectoYDesactivable() {
         var condicion = DatosIniciales.class.getAnnotation(ConditionalOnProperty.class);
         assertEquals("catalogo.carga-inicial.enabled", condicion.name()[0]);
         assertEquals("true", condicion.havingValue());
-        assertFalse(condicion.matchIfMissing());
+        assertTrue(condicion.matchIfMissing());
     }
 }

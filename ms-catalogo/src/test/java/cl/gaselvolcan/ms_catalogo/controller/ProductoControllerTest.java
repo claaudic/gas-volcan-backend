@@ -1,4 +1,4 @@
-package cl.gaselvolcan.ms_catalogo.controlador;
+package cl.gaselvolcan.ms_catalogo.controller;
 
 import static org.mockito.Mockito.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
@@ -12,7 +12,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import cl.gaselvolcan.ms_catalogo.dto.*;
 import cl.gaselvolcan.ms_catalogo.exception.*;
-import cl.gaselvolcan.ms_catalogo.servicio.ProductoService;
+import cl.gaselvolcan.ms_catalogo.service.ProductoService;
 
 // Pruebas HTTP simuladas: sin servidor, MySQL ni otros microservicios.
 class ProductoControllerTest {

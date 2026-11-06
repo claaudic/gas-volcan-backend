@@ -1,4 +1,4 @@
-package cl.gaselvolcan.ms_catalogo.servicio;
+package cl.gaselvolcan.ms_catalogo.service;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
@@ -11,8 +11,8 @@ import jakarta.validation.Validation;
 import jakarta.validation.ValidatorFactory;
 import cl.gaselvolcan.ms_catalogo.dto.*;
 import cl.gaselvolcan.ms_catalogo.exception.*;
-import cl.gaselvolcan.ms_catalogo.modelo.*;
-import cl.gaselvolcan.ms_catalogo.repositorio.*;
+import cl.gaselvolcan.ms_catalogo.model.*;
+import cl.gaselvolcan.ms_catalogo.repository.*;
 
 class CatalogoServiceTest {
     static ValidatorFactory factory;

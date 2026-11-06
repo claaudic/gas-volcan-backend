@@ -3,7 +3,7 @@ package cl.gaselvolcan.ms_catalogo.dto;
 import io.swagger.v3.oas.annotations.media.Schema;
 
 import java.math.BigDecimal;
-import cl.gaselvolcan.ms_catalogo.modelo.Producto;
+import cl.gaselvolcan.ms_catalogo.model.Producto;
 
 @Schema(description = "Datos devueltos por la API")
 public record ProductoRespuesta(@Schema(description = "ID persistente generado por MySQL") Long id, @Schema(description = "Codigo unico del producto") String codigo, @Schema(description = "Nombre del recurso") String nombre, @Schema(description = "Descripcion opcional") String descripcion,

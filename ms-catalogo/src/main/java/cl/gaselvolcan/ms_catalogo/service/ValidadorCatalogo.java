@@ -1,4 +1,4 @@
-package cl.gaselvolcan.ms_catalogo.servicio;
+package cl.gaselvolcan.ms_catalogo.service;
 
 import org.springframework.stereotype.Component;
 import jakarta.validation.Validator;

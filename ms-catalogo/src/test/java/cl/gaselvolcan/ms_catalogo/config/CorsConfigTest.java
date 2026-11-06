@@ -16,12 +16,12 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.web.context.support.AnnotationConfigWebApplicationContext;
 import org.springframework.web.servlet.config.annotation.EnableWebMvc;
-import cl.gaselvolcan.ms_catalogo.controlador.CategoriaController;
-import cl.gaselvolcan.ms_catalogo.controlador.ProductoController;
+import cl.gaselvolcan.ms_catalogo.controller.CategoriaController;
+import cl.gaselvolcan.ms_catalogo.controller.ProductoController;
 import cl.gaselvolcan.ms_catalogo.exception.ManejadorErrores;
 import cl.gaselvolcan.ms_catalogo.exception.RecursoNoEncontradoException;
-import cl.gaselvolcan.ms_catalogo.servicio.CategoriaService;
-import cl.gaselvolcan.ms_catalogo.servicio.ProductoService;
+import cl.gaselvolcan.ms_catalogo.service.CategoriaService;
+import cl.gaselvolcan.ms_catalogo.service.ProductoService;
 
 // Contexto MVC real con la configuracion central; sin MySQL ni Spring Boot completo.
 class CorsConfigTest {

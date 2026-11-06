@@ -1,5 +1,7 @@
-package cl.gaselvolcan.ms_catalogo.controlador;
+package cl.gaselvolcan.ms_catalogo.controller;
 
+import cl.gaselvolcan.ms_catalogo.dto.DisponibilidadRespuesta;
+import org.springframework.web.bind.annotation.RequestParam;
 import java.util.List;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -19,26 +21,26 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import jakarta.validation.Valid;
-import cl.gaselvolcan.ms_catalogo.dto.CategoriaRespuesta;
-import cl.gaselvolcan.ms_catalogo.dto.CategoriaSolicitud;
-import cl.gaselvolcan.ms_catalogo.servicio.CategoriaService;
+import cl.gaselvolcan.ms_catalogo.dto.ProductoRespuesta;
+import cl.gaselvolcan.ms_catalogo.dto.ProductoSolicitud;
+import cl.gaselvolcan.ms_catalogo.service.ProductoService;
 
 // Recibe HTTP y delega las reglas de negocio al servicio.
-@Tag(name = "Categorias", description = "CRUD del catalogo")
+@Tag(name = "Productos", description = "CRUD del catalogo")
 @RestController
-@RequestMapping("/api/v1/categorias")
-public class CategoriaController {
-    private final CategoriaService servicio;
+@RequestMapping("/api/v1/productos")
+public class ProductoController {
+    private final ProductoService servicio;
 
-    public CategoriaController(CategoriaService servicio) {
+    public ProductoController(ProductoService servicio) {
         this.servicio = servicio;
     }
 
-    @Operation(summary = "Listar categorias")
+    @Operation(summary = "Listar productos")
     @ApiResponse(responseCode = "200", description = "Operacion exitosa")
     @ApiResponse(responseCode = "500", description = "Error interno sin detalles sensibles", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ErrorRespuesta.class)))
     @GetMapping
-    public List<CategoriaRespuesta> listar() {
+    public List<ProductoRespuesta> listar() {
         return servicio.listar();
     }
 
@@ -48,30 +50,43 @@ public class CategoriaController {
     @ApiResponse(responseCode = "400", description = "Datos invalidos, duplicados o eliminacion de categoria con productos", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ErrorRespuesta.class)))
     @ApiResponse(responseCode = "500", description = "Error interno sin detalles sensibles", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ErrorRespuesta.class)))
     @GetMapping("/{id}")
-    public CategoriaRespuesta buscar(@Parameter(description = "ID positivo del recurso", example = "2") @PathVariable Long id) {
+    public ProductoRespuesta buscar(@Parameter(description = "ID positivo del recurso", example = "2") @PathVariable Long id) {
         return servicio.buscarPorId(id);
     }
 
-    @Operation(summary = "Crear categoria")
+    @Operation(summary = "Consultar disponibilidad de stock", description = "Para ms-pedidos. No reserva ni descuenta stock: la disponibilidad puede cambiar despues de consultar. Un producto inactivo o sin suficientes unidades devuelve 200 con disponible=false.")
+    @ApiResponse(responseCode = "200", description = "Disponibilidad actual")
+    @ApiResponse(responseCode = "400", description = "ID o cantidad invalidos", content = @Content(schema = @Schema(implementation = ErrorRespuesta.class)))
+    @ApiResponse(responseCode = "404", description = "Producto inexistente", content = @Content(schema = @Schema(implementation = ErrorRespuesta.class)))
+    @GetMapping("/{id}/disponibilidad")
+    public DisponibilidadRespuesta disponibilidad(
+            @Parameter(description = "ID positivo del producto", example = "2") @PathVariable Long id,
+            @Parameter(description = "Cantidad entera positiva; por defecto 1", example = "3", schema = @Schema(minimum = "1"))
+            @RequestParam(defaultValue = "1") Integer cantidad) {
+        return servicio.consultarDisponibilidad(id, cantidad);
+    }
+
+    @Operation(summary = "Crear producto")
     @ApiResponse(responseCode = "201", description = "Operacion exitosa")
+    @ApiResponse(responseCode = "404", description = "Producto o categoria inexistente", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ErrorRespuesta.class)))
     @ApiResponse(responseCode = "400", description = "Datos invalidos, duplicados o eliminacion de categoria con productos", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ErrorRespuesta.class)))
     @ApiResponse(responseCode = "500", description = "Error interno sin detalles sensibles", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ErrorRespuesta.class)))
     @PostMapping
-    public ResponseEntity<CategoriaRespuesta> crear(@Valid @RequestBody CategoriaSolicitud datos) {
+    public ResponseEntity<ProductoRespuesta> crear(@Valid @RequestBody ProductoSolicitud datos) {
         return ResponseEntity.status(HttpStatus.CREATED).body(servicio.crear(datos));
     }
 
-    @Operation(summary = "Actualizar categoria")
+    @Operation(summary = "Actualizar producto")
     @ApiResponse(responseCode = "200", description = "Operacion exitosa")
     @ApiResponse(responseCode = "404", description = "Producto o categoria inexistente", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ErrorRespuesta.class)))
     @ApiResponse(responseCode = "400", description = "Datos invalidos, duplicados o eliminacion de categoria con productos", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ErrorRespuesta.class)))
     @ApiResponse(responseCode = "500", description = "Error interno sin detalles sensibles", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ErrorRespuesta.class)))
     @PutMapping("/{id}")
-    public CategoriaRespuesta actualizar(@Parameter(description = "ID positivo del recurso", example = "2") @PathVariable Long id, @Valid @RequestBody CategoriaSolicitud datos) {
+    public ProductoRespuesta actualizar(@Parameter(description = "ID positivo del recurso", example = "2") @PathVariable Long id, @Valid @RequestBody ProductoSolicitud datos) {
         return servicio.actualizar(id, datos);
     }
 
-    @Operation(summary = "Eliminar categoria")
+    @Operation(summary = "Eliminar producto")
     @ApiResponse(responseCode = "204", description = "Operacion exitosa", content = @Content)
     @ApiResponse(responseCode = "404", description = "Producto o categoria inexistente", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ErrorRespuesta.class)))
     @ApiResponse(responseCode = "400", description = "Datos invalidos, duplicados o eliminacion de categoria con productos", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ErrorRespuesta.class)))

@@ -1,4 +1,4 @@
-package cl.gaselvolcan.ms_catalogo.modelo;
+package cl.gaselvolcan.ms_catalogo.model;
 
 import jakarta.persistence.*;
 import jakarta.validation.constraints.*;

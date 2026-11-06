@@ -1,8 +1,8 @@
-package cl.gaselvolcan.ms_catalogo.repositorio;
+package cl.gaselvolcan.ms_catalogo.repository;
 
 import java.util.Optional;
 import org.springframework.data.jpa.repository.JpaRepository;
-import cl.gaselvolcan.ms_catalogo.modelo.Categoria;
+import cl.gaselvolcan.ms_catalogo.model.Categoria;
 
 public interface CategoriaRepository extends JpaRepository<Categoria, Long> {
     Optional<Categoria> findByNombre(String nombre);
