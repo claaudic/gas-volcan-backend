@@ -42,6 +42,6 @@ public record RegistroSolicitud(
     // Convierte el registro en una solicitud de usuario, siempre como CLIENTE y activo
     public UsuarioSolicitud comoCliente() {
         return new UsuarioSolicitud(null, nombre, apellidos, correo, contrasena,
-                Rol.CLIENTE, telefono, comuna, direccion, true);
+                Rol.CLIENTE, telefono, comuna, direccion, null, null, true);
     }
 }

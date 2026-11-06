@@ -1,5 +1,7 @@
 package cl.gaselvolcan.usuarios.model;
 
+import java.time.LocalDate;
+
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -11,6 +13,7 @@ import jakarta.persistence.Table;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.PastOrPresent;
 import jakarta.validation.constraints.Size;
 
 // Cada objeto Usuario es una fila de la tabla "usuarios".
@@ -67,6 +70,15 @@ public class Usuario {
     @Column(length = 300)
     private String direccion;
 
+    // Opcional, como en el formulario de la EP2 (Admin Usuarios). No puede ser futura
+    @PastOrPresent
+    private LocalDate nacimiento;
+
+    // En la EP2 siempre es "Ñuble": todas las comunas con reparto están ahí
+    @Size(max = 60)
+    @Column(length = 60)
+    private String region;
+
     // En vez de borrar una cuenta se puede desactivar.
     @Column(nullable = false)
     private boolean activo = true;
@@ -112,6 +124,12 @@ public class Usuario {
 
     public String getDireccion() { return direccion; }
     public void setDireccion(String direccion) { this.direccion = direccion; }
+
+    public LocalDate getNacimiento() { return nacimiento; }
+    public void setNacimiento(LocalDate nacimiento) { this.nacimiento = nacimiento; }
+
+    public String getRegion() { return region; }
+    public void setRegion(String region) { this.region = region; }
 
     public boolean isActivo() { return activo; }
     public void setActivo(boolean activo) { this.activo = activo; }

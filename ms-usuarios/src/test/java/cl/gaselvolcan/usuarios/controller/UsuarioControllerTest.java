@@ -10,6 +10,8 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import java.time.LocalDate;
+
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.MediaType;
@@ -45,11 +47,13 @@ class UsuarioControllerTest {
     @Test
     void crearResponde201() throws Exception {
         when(servicio.crear(any())).thenReturn(new UsuarioRespuesta(6L, null, "Ana", "Soto",
-                "ana@gmail.com", Rol.CLIENTE, null, null, null, true));
+                "ana@gmail.com", Rol.CLIENTE, null, null, null, LocalDate.of(2000, 5, 31), "Ñuble", true));
 
         mvc.perform(post("/api/v1/usuarios").contentType(MediaType.APPLICATION_JSON).content(ANA))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.correo").value("ana@gmail.com"))
+                .andExpect(jsonPath("$.nacimiento").value("2000-05-31"))
+                .andExpect(jsonPath("$.region").value("Ñuble"))
                 .andExpect(jsonPath("$.contrasena").doesNotExist());
     }
 
@@ -60,6 +64,16 @@ class UsuarioControllerTest {
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.estado").value(400))
                 .andExpect(jsonPath("$.mensaje").value("El nombre es obligatorio."));
+    }
+
+    @Test
+    void fechaDeNacimientoFuturaResponde400() throws Exception {
+        String manana = LocalDate.now().plusDays(1).toString();
+
+        mvc.perform(post("/api/v1/usuarios").contentType(MediaType.APPLICATION_JSON)
+                        .content(ANA.replace("}", ",\"nacimiento\":\"" + manana + "\"}")))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.mensaje").value("La fecha de nacimiento no puede ser una fecha futura."));
     }
 
     @Test

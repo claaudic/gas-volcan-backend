@@ -1,5 +1,7 @@
 package cl.gaselvolcan.usuarios.dto;
 
+import java.time.LocalDate;
+
 import cl.gaselvolcan.usuarios.model.Rol;
 import cl.gaselvolcan.usuarios.model.Usuario;
 
@@ -14,6 +16,8 @@ public record UsuarioRespuesta(
         String telefono,
         String comuna,
         String direccion,
+        LocalDate nacimiento,
+        String region,
         boolean activo
 ) {
 
@@ -28,6 +32,8 @@ public record UsuarioRespuesta(
                 usuario.getTelefono(),
                 usuario.getComuna(),
                 usuario.getDireccion(),
+                usuario.getNacimiento(),
+                usuario.getRegion(),
                 usuario.isActivo()
         );
     }

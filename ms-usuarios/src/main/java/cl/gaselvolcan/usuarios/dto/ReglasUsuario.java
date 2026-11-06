@@ -14,6 +14,7 @@ public final class ReglasUsuario {
     public static final int MAX_CONTRASENA = 10;
     public static final int MAX_COMUNA = 60;
     public static final int MAX_DIRECCION = 300;
+    public static final int MAX_REGION = 60;
 
     // Vacío, o entre 8 y 15 números, espacios o +
     public static final String TELEFONO = "^$|^[+0-9\\s]{8,15}$";
@@ -30,6 +31,8 @@ public final class ReglasUsuario {
     public static final String MSJ_TELEFONO = "El teléfono solo admite números, espacios y el signo +.";
     public static final String MSJ_COMUNA_LARGO = "La comuna no puede superar los 60 caracteres.";
     public static final String MSJ_DIRECCION_LARGO = "La dirección no puede superar los 300 caracteres.";
+    public static final String MSJ_NACIMIENTO_FUTURO = "La fecha de nacimiento no puede ser una fecha futura.";
+    public static final String MSJ_REGION_LARGO = "La región no puede superar los 60 caracteres.";
 
     // Los mismos dominios permitidos en la EP2 (Anexo 1)
     public static final List<String> DOMINIOS_PERMITIDOS = List.of(
