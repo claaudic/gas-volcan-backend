@@ -1,4 +1,4 @@
-package cl.gaselvolcan.ms_catalogo.servicio;
+package cl.gaselvolcan.ms_catalogo.service;
 
 import java.util.List;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -6,8 +6,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import cl.gaselvolcan.ms_catalogo.dto.*;
 import cl.gaselvolcan.ms_catalogo.exception.*;
-import cl.gaselvolcan.ms_catalogo.modelo.Categoria;
-import cl.gaselvolcan.ms_catalogo.repositorio.*;
+import cl.gaselvolcan.ms_catalogo.model.Categoria;
+import cl.gaselvolcan.ms_catalogo.repository.*;
 
 @Service
 @Transactional

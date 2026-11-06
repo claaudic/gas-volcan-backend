@@ -1,4 +1,4 @@
-package cl.gaselvolcan.ms_catalogo.modelo;
+package cl.gaselvolcan.ms_catalogo.model;
 
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;

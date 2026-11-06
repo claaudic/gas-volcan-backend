@@ -10,15 +10,15 @@ import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 import tools.jackson.databind.json.JsonMapper;
 import cl.gaselvolcan.ms_catalogo.dto.ProductoSolicitud;
-import cl.gaselvolcan.ms_catalogo.modelo.Categoria;
-import cl.gaselvolcan.ms_catalogo.repositorio.CategoriaRepository;
-import cl.gaselvolcan.ms_catalogo.repositorio.ProductoRepository;
-import cl.gaselvolcan.ms_catalogo.servicio.ProductoService;
-import cl.gaselvolcan.ms_catalogo.servicio.ValidadorCatalogo;
+import cl.gaselvolcan.ms_catalogo.model.Categoria;
+import cl.gaselvolcan.ms_catalogo.repository.CategoriaRepository;
+import cl.gaselvolcan.ms_catalogo.repository.ProductoRepository;
+import cl.gaselvolcan.ms_catalogo.service.ProductoService;
+import cl.gaselvolcan.ms_catalogo.service.ValidadorCatalogo;
 
-// Desactivado salvo autorizacion explicita mediante catalogo.carga-inicial.enabled=true.
+// Carga automatica de faltantes; desactivar con catalogo.carga-inicial.enabled=false.
 @Component
-@ConditionalOnProperty(name = "catalogo.carga-inicial.enabled", havingValue = "true")
+@ConditionalOnProperty(name = "catalogo.carga-inicial.enabled", havingValue = "true", matchIfMissing = true)
 public class DatosIniciales implements CommandLineRunner {
     private final CategoriaRepository categorias;
     private final ProductoRepository productos;
