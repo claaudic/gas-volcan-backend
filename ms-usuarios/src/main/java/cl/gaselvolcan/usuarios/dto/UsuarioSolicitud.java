@@ -2,7 +2,7 @@ package cl.gaselvolcan.usuarios.dto;
 
 import static cl.gaselvolcan.usuarios.dto.ReglasUsuario.*;
 
-import cl.gaselvolcan.usuarios.modelo.Rol;
+import cl.gaselvolcan.usuarios.model.Rol;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;

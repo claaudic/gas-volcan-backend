@@ -1,7 +1,7 @@
 package cl.gaselvolcan.usuarios.dto;
 
-import cl.gaselvolcan.usuarios.modelo.Rol;
-import cl.gaselvolcan.usuarios.modelo.Usuario;
+import cl.gaselvolcan.usuarios.model.Rol;
+import cl.gaselvolcan.usuarios.model.Usuario;
 
 // Lo que la API devuelve. No incluye la contraseña.
 public record UsuarioRespuesta(

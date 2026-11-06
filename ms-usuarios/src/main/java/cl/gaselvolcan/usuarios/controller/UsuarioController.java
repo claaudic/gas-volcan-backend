@@ -1,4 +1,4 @@
-package cl.gaselvolcan.usuarios.controlador;
+package cl.gaselvolcan.usuarios.controller;
 
 import java.security.Principal;
 import java.util.List;
@@ -17,7 +17,7 @@ import org.springframework.web.bind.annotation.RestController;
 import cl.gaselvolcan.usuarios.dto.PerfilSolicitud;
 import cl.gaselvolcan.usuarios.dto.UsuarioRespuesta;
 import cl.gaselvolcan.usuarios.dto.UsuarioSolicitud;
-import cl.gaselvolcan.usuarios.servicio.UsuarioService;
+import cl.gaselvolcan.usuarios.service.UsuarioService;
 import jakarta.validation.Valid;
 
 // Las rutas REST de usuarios. Recibe la petición, llama al servicio y responde JSON.

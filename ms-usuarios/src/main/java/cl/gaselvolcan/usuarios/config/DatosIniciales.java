@@ -4,9 +4,9 @@ import org.springframework.boot.CommandLineRunner;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
 
-import cl.gaselvolcan.usuarios.modelo.Rol;
-import cl.gaselvolcan.usuarios.modelo.Usuario;
-import cl.gaselvolcan.usuarios.repositorio.UsuarioRepository;
+import cl.gaselvolcan.usuarios.model.Rol;
+import cl.gaselvolcan.usuarios.model.Usuario;
+import cl.gaselvolcan.usuarios.repository.UsuarioRepository;
 
 // Al arrancar, carga las 5 cuentas de demostración de la EP2.
 // Solo si la tabla está vacía, para no duplicarlas en cada arranque.
