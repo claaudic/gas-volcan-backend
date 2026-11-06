@@ -1,4 +1,4 @@
-package cl.gaselvolcan.usuarios.servicio;
+package cl.gaselvolcan.usuarios.service;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -22,11 +22,11 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import cl.gaselvolcan.usuarios.dto.PerfilSolicitud;
 import cl.gaselvolcan.usuarios.dto.UsuarioRespuesta;
 import cl.gaselvolcan.usuarios.dto.UsuarioSolicitud;
-import cl.gaselvolcan.usuarios.excepcion.RecursoNoEncontradoException;
-import cl.gaselvolcan.usuarios.excepcion.SolicitudInvalidaException;
-import cl.gaselvolcan.usuarios.modelo.Rol;
-import cl.gaselvolcan.usuarios.modelo.Usuario;
-import cl.gaselvolcan.usuarios.repositorio.UsuarioRepository;
+import cl.gaselvolcan.usuarios.exception.RecursoNoEncontradoException;
+import cl.gaselvolcan.usuarios.exception.SolicitudInvalidaException;
+import cl.gaselvolcan.usuarios.model.Rol;
+import cl.gaselvolcan.usuarios.model.Usuario;
+import cl.gaselvolcan.usuarios.repository.UsuarioRepository;
 
 // Pruebas de las reglas del CRUD de usuarios, con un repositorio falso (mock), sin MySQL.
 class UsuarioServiceTest {

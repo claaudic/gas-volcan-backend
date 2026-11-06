@@ -1,4 +1,4 @@
-package cl.gaselvolcan.usuarios.controlador;
+package cl.gaselvolcan.usuarios.controller;
 
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
@@ -13,7 +13,7 @@ import cl.gaselvolcan.usuarios.dto.LoginRespuesta;
 import cl.gaselvolcan.usuarios.dto.LoginSolicitud;
 import cl.gaselvolcan.usuarios.dto.RegistroSolicitud;
 import cl.gaselvolcan.usuarios.dto.UsuarioRespuesta;
-import cl.gaselvolcan.usuarios.servicio.AuthService;
+import cl.gaselvolcan.usuarios.service.AuthService;
 import jakarta.validation.Valid;
 
 // Rutas públicas de autenticación

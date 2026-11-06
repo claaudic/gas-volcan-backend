@@ -1,12 +1,12 @@
-package cl.gaselvolcan.usuarios.repositorio;
+package cl.gaselvolcan.usuarios.repository;
 
 import java.util.List;
 import java.util.Optional;
 
 import org.springframework.data.jpa.repository.JpaRepository;
 
-import cl.gaselvolcan.usuarios.modelo.Rol;
-import cl.gaselvolcan.usuarios.modelo.Usuario;
+import cl.gaselvolcan.usuarios.model.Rol;
+import cl.gaselvolcan.usuarios.model.Usuario;
 
 // JpaRepository ya trae save, findAll, findById, deleteById y count.
 // Spring escribe el SQL a partir del nombre de cada método.
