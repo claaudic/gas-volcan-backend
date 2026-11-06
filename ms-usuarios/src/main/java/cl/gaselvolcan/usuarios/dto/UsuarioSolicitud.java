@@ -2,10 +2,13 @@ package cl.gaselvolcan.usuarios.dto;
 
 import static cl.gaselvolcan.usuarios.dto.ReglasUsuario.*;
 
+import java.time.LocalDate;
+
 import cl.gaselvolcan.usuarios.model.Rol;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.PastOrPresent;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 
@@ -43,6 +46,13 @@ public record UsuarioSolicitud(
 
         @Size(max = MAX_DIRECCION, message = MSJ_DIRECCION_LARGO)
         String direccion,
+
+        // Opcional. En el JSON va como "2000-05-31". Hoy o antes, nunca en el futuro
+        @PastOrPresent(message = MSJ_NACIMIENTO_FUTURO)
+        LocalDate nacimiento,
+
+        @Size(max = MAX_REGION, message = MSJ_REGION_LARGO)
+        String region,
 
         // Opcional: si no viene, al crear queda activo y al actualizar no cambia.
         Boolean activo

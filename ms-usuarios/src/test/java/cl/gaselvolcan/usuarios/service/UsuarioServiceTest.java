@@ -11,6 +11,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import java.time.LocalDate;
 import java.util.Optional;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -46,7 +47,7 @@ class UsuarioServiceTest {
     private static final String ADMIN = "admin@gaselvolcan.cl";
 
     private UsuarioSolicitud solicitud(String run, String correo, String contrasena, Boolean activo) {
-        return new UsuarioSolicitud(run, "Ana", "Soto", correo, contrasena, Rol.CLIENTE, null, null, null, activo);
+        return new UsuarioSolicitud(run, "Ana", "Soto", correo, contrasena, Rol.CLIENTE, null, null, null, null, null, activo);
     }
 
     // --- RUN (mismo algoritmo que runValido de la EP2) ---
@@ -56,6 +57,17 @@ class UsuarioServiceTest {
         assertTrue(UsuarioService.runValido("111111111"));
         assertTrue(UsuarioService.runValido("123456785"));
         assertTrue(UsuarioService.runValido("10000013K"));
+    }
+
+    @Test
+    void guardaLaFechaDeNacimientoYLaRegion() {
+        UsuarioSolicitud datos = new UsuarioSolicitud(null, "Ana", "Soto", "ana@gmail.com", "Ana1234", Rol.CLIENTE,
+                null, "Chillán", null, LocalDate.of(2000, 5, 31), " Ñuble ", null);
+
+        UsuarioRespuesta creado = servicio.crear(datos);
+
+        assertEquals(LocalDate.of(2000, 5, 31), creado.nacimiento());
+        assertEquals("Ñuble", creado.region());
     }
 
     @Test
@@ -169,7 +181,7 @@ class UsuarioServiceTest {
     }
 
     private UsuarioSolicitud cambioDeSofia(String correo, Rol rol, Boolean activo) {
-        return new UsuarioSolicitud(null, "Sofía", "Pérez", correo, null, rol, null, null, null, activo);
+        return new UsuarioSolicitud(null, "Sofía", "Pérez", correo, null, rol, null, null, null, null, null, activo);
     }
 
     private void esperarError(String mensaje, Runnable accion) {

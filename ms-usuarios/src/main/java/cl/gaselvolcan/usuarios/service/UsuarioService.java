@@ -180,6 +180,8 @@ public class UsuarioService {
         usuario.setTelefono(textoOpcional(datos.telefono()));
         usuario.setComuna(textoOpcional(datos.comuna()));
         usuario.setDireccion(textoOpcional(datos.direccion()));
+        usuario.setNacimiento(datos.nacimiento());
+        usuario.setRegion(textoOpcional(datos.region()));
     }
 
     private String limpiarCorreo(String correo) {
