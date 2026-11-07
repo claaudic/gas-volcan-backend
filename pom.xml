@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  pom "general" del backend: solo agrupa los microservicios.
+  Sirve para abrir la carpeta gas-volcan-backend en IntelliJ y ver todos juntos.
+  Cada microservicio sigue siendo independiente: tiene su propio pom.xml,
+  su propio puerto y su propia base de datos.
+-->
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <groupId>cl.gaselvolcan</groupId>
+    <artifactId>gas-volcan-backend</artifactId>
+    <version>1.0.0</version>
+    <packaging>pom</packaging>
+    <name>gas-volcan-backend</name>
+
+    <modules>
+        <module>ms-usuarios</module>
+        <module>ms-catalogo</module>
+        <module>ms-pedidos</module>
+        <module>gateway</module>
+    </modules>
+</project>
