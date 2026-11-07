@@ -21,13 +21,14 @@ Tres microservicios de negocio y un API Gateway. Cada microservicio tiene **su p
 
 ```
 gas-volcan-backend/
+├── pom.xml                 → agrupa los microservicios (para abrirlos juntos en IntelliJ)
 ├── docker-compose.yml      → MySQL 8.4 en Docker
 ├── mysql-init/
 │   └── 01-bases.sql        → crea las 3 bases: volcan_usuarios, volcan_catalogo y volcan_pedidos
-├── gateway/                → (en construcción) API Gateway · puerto 8080
+├── gateway/                → API Gateway · puerto 8080
 ├── ms-usuarios/            → usuarios, login y JWT · puerto 8081
-├── ms-catalogo/            → (en construcción) categorías y productos · puerto 8082
-└── ms-pedidos/             → (en construcción) boletas y su detalle · puerto 8083
+├── ms-catalogo/            → categorías y productos · puerto 8082
+└── ms-pedidos/             → boletas y su detalle · puerto 8083
 ```
 
 ## Requisitos
@@ -65,6 +66,26 @@ docker compose stop
 ```
 
 > Las contraseñas de `docker-compose.yml` son solo para desarrollo local.
+
+## Gateway (puerto 8080)
+
+React llama **solo** al Gateway, y él reparte cada ruta a su microservicio (la ruta se reenvía igual):
+
+| Ruta en el 8080 | Va a |
+|---|---|
+| `/api/v1/auth/**`, `/api/v1/usuarios/**` | ms-usuarios · 8081 |
+| `/api/v1/productos/**`, `/api/v1/categorias/**` | ms-catalogo · 8082 |
+| `/api/v1/boletas/**` | ms-pedidos · 8083 |
+
+Desde la carpeta `gateway` (con los microservicios encendidos):
+
+```bash
+./mvnw spring-boot:run
+```
+
+- El Gateway **solo enruta**: el token `Authorization: Bearer` llega intacto y cada microservicio revisa la identidad y los permisos (401 / 403).
+- **CORS** se maneja aquí, para `http://localhost:5173` (variable `CORS_ORIGENES`). Si un microservicio también manda su cabecera CORS, el Gateway deja una sola.
+- Las direcciones de los microservicios se cambian con `USUARIOS_URL`, `CATALOGO_URL` y `PEDIDOS_URL` (por ejemplo, al desplegar).
 
 ## ms-usuarios (puerto 8081)
 
