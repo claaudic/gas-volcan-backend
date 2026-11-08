@@ -29,13 +29,19 @@ public class BoletaService {
     private static final BigDecimal LIMITE_TOTAL = new BigDecimal("100000000000000000");
     private final BoletaRepository repositorio;
     private final Validator validator;
+    private final org.springframework.transaction.support.TransactionTemplate tx;
 
     private final CatalogoClient catalogo;
+    @org.springframework.beans.factory.annotation.Autowired
+    private cl.gaselvolcan.ms_pedidos.repository.OperacionCompraRepository compras;
 
-    public BoletaService(BoletaRepository repositorio, Validator validator, CatalogoClient catalogo) {
+    public BoletaService(BoletaRepository repositorio, Validator validator, CatalogoClient catalogo,
+            org.springframework.transaction.PlatformTransactionManager manager) {
         this.catalogo = catalogo;
         this.repositorio = repositorio;
         this.validator = validator;
+        tx = new org.springframework.transaction.support.TransactionTemplate(manager);
+        tx.setPropagationBehavior(org.springframework.transaction.TransactionDefinition.PROPAGATION_REQUIRES_NEW);
     }
 
     @Transactional(readOnly = true)
@@ -55,7 +61,9 @@ public class BoletaService {
         return BoletaRespuesta.desde(boleta);
     }
 
-    public BoletaRespuesta crear(BoletaSolicitud datos) {
+    // Cotizacion sin persistencia ni transaccion durante las consultas HTTP.
+    @Transactional(propagation = org.springframework.transaction.annotation.Propagation.NOT_SUPPORTED)
+    public BoletaRespuesta cotizar(BoletaSolicitud datos) {
         if (datos != null && datos.estado() != null && !EstadoBoleta.PENDIENTE.name().equals(datos.estado())) {
             throw new SolicitudInvalidaException("La boleta debe crearse en estado PENDIENTE.");
         }
@@ -63,31 +71,43 @@ public class BoletaService {
         BigDecimal total = calcularTotal(datos, precios);
         Boleta boleta = new Boleta();
         copiar(datos, total, precios, boleta);
-        return BoletaRespuesta.desde(repositorio.saveAndFlush(boleta));
+        return BoletaRespuesta.desde(boleta);
     }
 
+    @Transactional(propagation = org.springframework.transaction.annotation.Propagation.NOT_SUPPORTED)
     public BoletaRespuesta actualizar(Long id, BoletaSolicitud datos) {
         if (repartidorAutenticado() != null) {
             throw new AccessDeniedException("El repartidor no puede reemplazar una boleta.");
         }
-        Boleta boleta = obtener(id);
+        tx.executeWithoutResult(s -> validarEdicion(obtener(id), datos));
+        var precios = validarYConsultarPrecios(datos);
+        BigDecimal total = calcularTotal(datos, precios);
+        return tx.execute(s -> {
+            Boleta boleta = obtener(id);
+            validarEdicion(boleta, datos);
+            copiar(datos, total, precios, boleta);
+            return BoletaRespuesta.desde(repositorio.saveAndFlush(boleta));
+        });
+    }
+
+    private void validarEdicion(Boleta boleta, BoletaSolicitud datos) {
+        if (boleta.getOperacionStockId() != null) {
+            throw new SolicitudInvalidaException("La boleta con descuento acreditado no admite edicion general; usa el endpoint de estado.");
+        }
         if (!EstadoBoleta.PENDIENTE.name().equals(boleta.getEstado())) {
             throw new SolicitudInvalidaException("Solo se puede modificar una boleta en estado PENDIENTE.");
         }
         if (datos != null && datos.estado() != null && !datos.estado().equals(boleta.getEstado())) {
             throw new SolicitudInvalidaException("Usa el endpoint de estado para cambiar el estado de la boleta.");
         }
-        // Validar antes de alterar una entidad administrada por JPA.
-        var precios = validarYConsultarPrecios(datos);
-        BigDecimal total = calcularTotal(datos, precios);
-        copiar(datos, total, precios, boleta);
-        return BoletaRespuesta.desde(repositorio.saveAndFlush(boleta));
     }
 
     public BoletaRespuesta actualizarEstado(Long id, EstadoBoleta destino) {
         Long repartidorId = repartidorAutenticado();
         Boleta boleta = obtener(id);
         verificarAsignacion(boleta, repartidorId);
+        if (destino == EstadoBoleta.CANCELADO && "CANCELADO".equals(boleta.getEstado())
+                && boleta.getOperacionStockId() != null) return BoletaRespuesta.desde(boleta);
         EstadoBoleta actual;
         try {
             actual = EstadoBoleta.valueOf(boleta.getEstado());
@@ -98,6 +118,15 @@ public class BoletaService {
             throw new SolicitudInvalidaException("Transicion de estado no permitida: " + actual + " -> " + destino + ".");
         }
         boleta.setEstado(destino.name());
+        if (destino == EstadoBoleta.CANCELADO && boleta.getOperacionStockId() != null) {
+            var compra = compras.bloquear(boleta.getOperacionStockId()).orElseThrow(
+                    () -> new IllegalStateException("Falta el registro de stock de la boleta."));
+            if (!"CONFIRMADA".equals(compra.getEstado()) || !boleta.getId().equals(compra.getBoletaId())) {
+                throw new SolicitudInvalidaException("La operacion de compra no admite cancelacion en este momento.");
+            }
+            compra.setEstado("COMPENSACION_PENDIENTE");
+            compra.liberar();
+        }
         return BoletaRespuesta.desde(repositorio.saveAndFlush(boleta));
     }
 

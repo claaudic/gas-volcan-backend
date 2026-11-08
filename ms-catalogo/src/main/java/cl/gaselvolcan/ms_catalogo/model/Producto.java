@@ -12,6 +12,11 @@ public class Producto {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    // Evita que un PUT administrativo basado en una lectura anterior pise el stock.
+    @Version
+    @Column(nullable = false, columnDefinition = "bigint default 0")
+    private Long version;
+
     @NotBlank
     @Size(max = 255)
     @Column(nullable = false, unique = true)

@@ -25,6 +25,7 @@ class BoletaControllerTest {
                          {"productoId":91002,"cantidad":3,"precio":3.10}]}
             """;
     private BoletaService servicio;
+    private cl.gaselvolcan.ms_pedidos.service.CompraService compras;
     private MockMvc mvc;
     private final BoletaRespuesta respuesta = new BoletaRespuesta(1L, 10L, "Direccion 123", "Comuna", "PENDIENTE",
             null, LocalDateTime.of(2026, 1, 1, 12, 0), new BigDecimal("49.28"),
@@ -33,7 +34,8 @@ class BoletaControllerTest {
 
     @BeforeEach void preparar() {
         servicio = mock(BoletaService.class);
-        mvc = MockMvcBuilders.standaloneSetup(new BoletaController(servicio))
+        compras = mock(cl.gaselvolcan.ms_pedidos.service.CompraService.class);
+        mvc = MockMvcBuilders.standaloneSetup(new BoletaController(servicio, compras))
                 .setControllerAdvice(new ManejadorErrores()).build();
     }
     @Test void listar200() throws Exception {
@@ -51,10 +53,10 @@ class BoletaControllerTest {
                 .andExpect(jsonPath("$.detalles[0].boleta").doesNotExist());
     }
     @Test void crear201ConDtoCompleto() throws Exception {
-        when(servicio.crear(any())).thenReturn(respuesta);
-        mvc.perform(post(RUTA).contentType(MediaType.APPLICATION_JSON).content(DATOS))
+        when(compras.crear(any(), any())).thenReturn(respuesta);
+        mvc.perform(post(RUTA).header("Idempotency-Key", java.util.UUID.randomUUID()).contentType(MediaType.APPLICATION_JSON).content(DATOS))
                 .andExpect(status().isCreated()).andExpect(jsonPath("$.total").value(49.28));
-        verify(servicio).crear(argThat(d -> d.clienteId() == 10L && d.detalles().size() == 2));
+        verify(compras).crear(any(), argThat(d -> d.clienteId() == 10L && d.detalles().size() == 2));
     }
     @Test void actualizar200() throws Exception {
         when(servicio.actualizar(eq(1L), any())).thenReturn(respuesta);
@@ -64,7 +66,7 @@ class BoletaControllerTest {
     }
     @Test void eliminar405NoInvocaServicio() throws Exception {
         mvc.perform(delete(RUTA + "/1")).andExpect(status().isMethodNotAllowed());
-        verifyNoInteractions(servicio);
+        verifyNoInteractions(servicio, compras);
     }
     @Test void recursosInexistentes404() throws Exception {
         when(servicio.buscarPorId(99L)).thenThrow(new RecursoNoEncontradoException("No existe"));
@@ -87,33 +89,33 @@ class BoletaControllerTest {
                 "{\"clienteId\":10,\"direccion\":\"D\",\"comuna\":\"C\",\"estado\":\"E\",\"fecha\":\"2026-01-01T12:00:00\",\"detalles\":[]}",
                 "{\"clienteId\":10,\"direccion\":\"D\",\"comuna\":\"C\",\"estado\":\"E\",\"fecha\":\"2026-01-01T12:00:00\",\"detalles\":[null]}");
         for (String datos : invalidos) {
-            for (var request : List.of(post(RUTA), put(RUTA + "/1"))) {
+            for (var request : List.of(post(RUTA).header("Idempotency-Key", java.util.UUID.randomUUID()), put(RUTA + "/1"))) {
                 mvc.perform(request.contentType(MediaType.APPLICATION_JSON).content(datos))
                         .andExpect(status().isBadRequest()).andExpect(jsonPath("$.estado").value(400))
                         .andExpect(jsonPath("$.mensaje").isNotEmpty());
             }
         }
-        verifyNoInteractions(servicio);
+        verifyNoInteractions(servicio, compras);
     }
     @Test void jsonMalformadoOCuerpoAusente400() throws Exception {
         for (String datos : List.of("{", "", "null")) {
-            mvc.perform(post(RUTA).contentType(MediaType.APPLICATION_JSON).content(datos))
+            mvc.perform(post(RUTA).header("Idempotency-Key", java.util.UUID.randomUUID()).contentType(MediaType.APPLICATION_JSON).content(datos))
                     .andExpect(status().isBadRequest()).andExpect(jsonPath("$.estado").value(400));
         }
-        verifyNoInteractions(servicio);
+        verifyNoInteractions(servicio, compras);
     }
     @Test void idNoNumerico400() throws Exception {
         mvc.perform(get(RUTA + "/abc")).andExpect(status().isBadRequest()).andExpect(jsonPath("$.estado").value(400));
-        verifyNoInteractions(servicio);
+        verifyNoInteractions(servicio, compras);
     }
     @Test void reglaNegocio400() throws Exception {
-        when(servicio.crear(any())).thenThrow(new SolicitudInvalidaException("Total excesivo"));
-        mvc.perform(post(RUTA).contentType(MediaType.APPLICATION_JSON).content(DATOS))
+        when(compras.crear(any(), any())).thenThrow(new SolicitudInvalidaException("Total excesivo"));
+        mvc.perform(post(RUTA).header("Idempotency-Key", java.util.UUID.randomUUID()).contentType(MediaType.APPLICATION_JSON).content(DATOS))
                 .andExpect(status().isBadRequest()).andExpect(jsonPath("$.mensaje").value("Total excesivo"));
     }
     @Test void integridad400SinFiltrarDetalleInterno() throws Exception {
-        when(servicio.crear(any())).thenThrow(new DataIntegrityViolationException("SQL interno"));
-        mvc.perform(post(RUTA).contentType(MediaType.APPLICATION_JSON).content(DATOS))
+        when(compras.crear(any(), any())).thenThrow(new DataIntegrityViolationException("SQL interno"));
+        mvc.perform(post(RUTA).header("Idempotency-Key", java.util.UUID.randomUUID()).contentType(MediaType.APPLICATION_JSON).content(DATOS))
                 .andExpect(status().isBadRequest()).andExpect(jsonPath("$.estado").value(400))
                 .andExpect(jsonPath("$.mensaje").value("No se pudo completar la operacion por una restriccion de integridad."));
     }
@@ -121,7 +123,7 @@ class BoletaControllerTest {
         mvc.perform(patch(RUTA + "/1")).andExpect(status().isMethodNotAllowed()).andExpect(jsonPath("$.estado").value(405));
     }
     @Test void contenidoNoJson415() throws Exception {
-        mvc.perform(post(RUTA).contentType(MediaType.TEXT_PLAIN).content("texto"))
+        mvc.perform(post(RUTA).header("Idempotency-Key", java.util.UUID.randomUUID()).contentType(MediaType.TEXT_PLAIN).content("texto"))
                 .andExpect(status().isUnsupportedMediaType()).andExpect(jsonPath("$.estado").value(415));
     }
     @Test void errorInesperado500SinDetalleInterno() throws Exception {
@@ -129,8 +131,8 @@ class BoletaControllerTest {
         mvc.perform(get(RUTA)).andExpect(status().isInternalServerError()).andExpect(jsonPath("$.estado").value(500));
     }
     @Test void catalogoNoDisponible503() throws Exception {
-        when(servicio.crear(any())).thenThrow(new CatalogoNoDisponibleException("Catalogo no disponible"));
-        mvc.perform(post(RUTA).contentType(MediaType.APPLICATION_JSON).content(DATOS))
+        when(compras.crear(any(), any())).thenThrow(new CatalogoNoDisponibleException("Catalogo no disponible"));
+        mvc.perform(post(RUTA).header("Idempotency-Key", java.util.UUID.randomUUID()).contentType(MediaType.APPLICATION_JSON).content(DATOS))
                 .andExpect(status().isServiceUnavailable()).andExpect(jsonPath("$.estado").value(503));
     }
     @Test void respuestaCatalogoInvalida502EnPut() throws Exception {
@@ -139,10 +141,10 @@ class BoletaControllerTest {
                 .andExpect(status().isBadGateway()).andExpect(jsonPath("$.estado").value(502));
     }
     @Test void preciosAntiguosSeIgnoranYNoSonObligatorios() throws Exception {
-        when(servicio.crear(any())).thenReturn(respuesta);
+        when(compras.crear(any(), any())).thenReturn(respuesta);
         for (String datos : List.of(DATOS.replace("19.99", "-1"), DATOS.replace("19.99", "null"),
                 DATOS.replace(",\"precio\":19.99", "").replace(",\"precio\":3.10", ""))) {
-            mvc.perform(post(RUTA).contentType(MediaType.APPLICATION_JSON).content(datos)).andExpect(status().isCreated());
+            mvc.perform(post(RUTA).header("Idempotency-Key", java.util.UUID.randomUUID()).contentType(MediaType.APPLICATION_JSON).content(datos)).andExpect(status().isCreated());
         }
     }
 

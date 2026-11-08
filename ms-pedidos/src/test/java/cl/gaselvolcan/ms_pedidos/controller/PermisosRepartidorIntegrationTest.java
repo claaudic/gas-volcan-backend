@@ -30,6 +30,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.context.WebApplicationContext;
 
 // Filtros JWT, controlador, servicio y persistencia reales. Catalogo no debe intervenir.
+@org.springframework.test.context.TestPropertySource(properties = "internal.jwt.secret=clave-interna-sintetica-exclusiva-de-pruebas-123456")
 @SpringBootTest(properties = {
         "jwt.secret=" + PermisosRepartidorIntegrationTest.CLAVE,
         "spring.datasource.url=jdbc:h2:mem:permisos-repartidor;DB_CLOSE_DELAY=-1",
@@ -38,7 +39,6 @@ import org.springframework.web.context.WebApplicationContext;
         "spring.jpa.hibernate.ddl-auto=create-drop", "spring.sql.init.mode=never",
         "spring.jpa.show-sql=false"
 })
-@Transactional
 class PermisosRepartidorIntegrationTest {
     static final String CLAVE = "clave-solo-para-las-pruebas-de-gas-el-volcan";
     private static final String RUTA = "/api/v1/boletas";
@@ -55,6 +55,7 @@ class PermisosRepartidorIntegrationTest {
     private Long propia, ajena, sinAsignar;
 
     @BeforeEach void preparar() {
+        repositorio.deleteAll();
         mvc = MockMvcBuilders.webAppContextSetup(contexto).apply(springSecurity()).build();
         propia = guardar(11L);
         ajena = guardar(22L);
@@ -92,9 +93,13 @@ class PermisosRepartidorIntegrationTest {
     @Test void consultaPropiaPeroNoAjenaNiSinAsignar() throws Exception {
         mvc.perform(get(RUTA + "/" + propia).header("Authorization", repartidor(11)))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.id").value(propia));
+        mvc.perform(get(RUTA + "/" + propia + "/stock").header("Authorization", repartidor(11)))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.estadoTecnico").value("SIN_REGISTRO"));
         for (Long id : new Long[] {ajena, sinAsignar}) {
             mvc.perform(get(RUTA + "/" + id).header("Authorization", repartidor(11)))
                     .andExpect(status().isForbidden()).andExpect(jsonPath("$.estado").value(403));
+            mvc.perform(get(RUTA + "/" + id + "/stock").header("Authorization", repartidor(11)))
+                    .andExpect(status().isForbidden());
         }
     }
 

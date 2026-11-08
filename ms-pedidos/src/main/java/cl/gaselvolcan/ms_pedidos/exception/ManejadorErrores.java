@@ -23,6 +23,16 @@ public class ManejadorErrores {
 
     private static final Logger log = LoggerFactory.getLogger(ManejadorErrores.class);
 
+    @ExceptionHandler({ConflictoCompraException.class, org.springframework.dao.OptimisticLockingFailureException.class})
+    public ResponseEntity<ErrorRespuesta> conflicto(Exception error) {
+        return responder(HttpStatus.CONFLICT, "Compra en conflicto o modificada concurrentemente. Conserva la misma clave.");
+    }
+
+    @ExceptionHandler(org.springframework.web.bind.MissingRequestHeaderException.class)
+    public ResponseEntity<ErrorRespuesta> faltaClave(Exception error) {
+        return responder(HttpStatus.BAD_REQUEST, "Idempotency-Key es obligatorio y debe ser un UUID.");
+    }
+
     // --- Errores del negocio (los lanza el servicio) ---
 
     @ExceptionHandler(AccessDeniedException.class)

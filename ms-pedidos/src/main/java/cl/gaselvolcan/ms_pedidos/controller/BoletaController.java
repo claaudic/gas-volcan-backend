@@ -20,8 +20,11 @@ import cl.gaselvolcan.ms_pedidos.service.BoletaService;
 @RequestMapping("/api/v1/boletas")
 public class BoletaController {
     private final BoletaService servicio;
+    private final cl.gaselvolcan.ms_pedidos.service.CompraService compras;
 
-    public BoletaController(BoletaService servicio) { this.servicio = servicio; }
+    public BoletaController(BoletaService servicio, cl.gaselvolcan.ms_pedidos.service.CompraService compras) {
+        this.servicio = servicio; this.compras = compras;
+    }
 
     @GetMapping
     public List<BoletaRespuesta> listar() { return servicio.listar(); }
@@ -30,8 +33,14 @@ public class BoletaController {
     public BoletaRespuesta buscar(@PathVariable Long id) { return servicio.buscarPorId(id); }
 
     @PostMapping
-    public ResponseEntity<BoletaRespuesta> crear(@Valid @RequestBody BoletaSolicitud datos) {
-        return ResponseEntity.status(HttpStatus.CREATED).body(servicio.crear(datos));
+    public ResponseEntity<BoletaRespuesta> crear(@org.springframework.web.bind.annotation.RequestHeader("Idempotency-Key") java.util.UUID clave,
+            @Valid @RequestBody BoletaSolicitud datos) {
+        return ResponseEntity.status(HttpStatus.CREATED).body(compras.crear(clave, datos));
+    }
+
+    @GetMapping("/{id}/stock")
+    public cl.gaselvolcan.ms_pedidos.service.CompraService.EstadoStock estadoStock(@PathVariable Long id) {
+        return compras.estadoStock(id);
     }
 
     @PutMapping("/{id}")

@@ -35,7 +35,9 @@ class BoletaServiceTest {
         when(catalogo.consultarDisponibilidad(anyLong(), anyInt())).thenAnswer(c ->
                 new cl.gaselvolcan.ms_pedidos.dto.catalogo.DisponibilidadCatalogoRespuesta(
                         c.getArgument(0), "P" + c.getArgument(0), c.getArgument(1), Integer.MAX_VALUE, true, true));
-        servicio = new BoletaService(repositorio, factory.getValidator(), catalogo);
+        var manager = mock(org.springframework.transaction.PlatformTransactionManager.class);
+        when(manager.getTransaction(any())).thenReturn(new org.springframework.transaction.support.SimpleTransactionStatus());
+        servicio = new BoletaService(repositorio, factory.getValidator(), catalogo, manager);
         existente = new Boleta(10L, "Direccion anterior", "Comuna anterior", "PENDIENTE",
                 null, LocalDateTime.of(2026, 1, 1, 12, 0), BigDecimal.TEN);
         existente.setId(1L);
@@ -55,7 +57,7 @@ class BoletaServiceTest {
     }
 
     @Test void creaConDosProductosYCalculaImporteExacto() {
-        var respuesta = servicio.crear(datos(lineas()));
+        var respuesta = servicio.cotizar(datos(lineas()));
         assertEquals(new BigDecimal("49.28"), respuesta.total());
         assertEquals(2, respuesta.detalles().size());
         assertEquals(91001L, respuesta.detalles().getFirst().productoId());
@@ -63,13 +65,13 @@ class BoletaServiceTest {
         assertEquals("Comuna", respuesta.comuna());
         assertEquals("PENDIENTE", respuesta.estado());
         assertNull(respuesta.repartidorId());
-        verify(repositorio).saveAndFlush(argThat(b -> b.getDetalles().stream().allMatch(d -> d.getBoleta() == b)));
+        verify(repositorio, never()).saveAndFlush(any());
     }
     @Test void creaPendienteSinEstadoYRechazaOtroEstadoInicial() {
-        assertEquals("PENDIENTE", servicio.crear(new BoletaSolicitud(10L, "D", "C", null,
+        assertEquals("PENDIENTE", servicio.cotizar(new BoletaSolicitud(10L, "D", "C", null,
                 null, LocalDateTime.now(), lineas())).estado());
         for (String estado : List.of("EN_CAMINO", "ENTREGADO", "CANCELADO")) {
-            assertThrows(SolicitudInvalidaException.class, () -> servicio.crear(
+            assertThrows(SolicitudInvalidaException.class, () -> servicio.cotizar(
                     new BoletaSolicitud(10L, "D", "C", estado, null, LocalDateTime.now(), lineas())));
         }
     }
@@ -135,12 +137,12 @@ class BoletaServiceTest {
 
     @Test void guardaRepartidorYFechaRecibidos() {
         var fecha = LocalDateTime.of(2026, 2, 3, 10, 30);
-        var respuesta = servicio.crear(new BoletaSolicitud(10L, "Direccion", "Comuna", "PENDIENTE", 20L, fecha, lineas()));
+        var respuesta = servicio.cotizar(new BoletaSolicitud(10L, "Direccion", "Comuna", "PENDIENTE", 20L, fecha, lineas()));
         assertEquals(20L, respuesta.repartidorId());
         assertEquals(fecha, respuesta.fecha());
     }
     @Test void admitePrecioCeroYMasDeDosProductos() {
-        var respuesta = servicio.crear(datos(List.of(
+        var respuesta = servicio.cotizar(datos(List.of(
                 new DetalleBoletaSolicitud(1L, 1),
                 new DetalleBoletaSolicitud(2L, 1),
                 new DetalleBoletaSolicitud(3L, 1))));
@@ -179,10 +181,10 @@ class BoletaServiceTest {
         verifyNoInteractions(repositorio);
     }
     @Test void rechazaSolicitudNulaYDetallesVaciosNulosONulosDentroDeLista() {
-        assertThrows(SolicitudInvalidaException.class, () -> servicio.crear(null));
-        assertThrows(SolicitudInvalidaException.class, () -> servicio.crear(datos(null)));
-        assertThrows(SolicitudInvalidaException.class, () -> servicio.crear(datos(List.of())));
-        assertThrows(SolicitudInvalidaException.class, () -> servicio.crear(datos(Arrays.asList((DetalleBoletaSolicitud) null))));
+        assertThrows(SolicitudInvalidaException.class, () -> servicio.cotizar(null));
+        assertThrows(SolicitudInvalidaException.class, () -> servicio.cotizar(datos(null)));
+        assertThrows(SolicitudInvalidaException.class, () -> servicio.cotizar(datos(List.of())));
+        assertThrows(SolicitudInvalidaException.class, () -> servicio.cotizar(datos(Arrays.asList((DetalleBoletaSolicitud) null))));
         verify(repositorio, never()).saveAndFlush(any());
     }
     @Test void rechazaCantidadesEIdsDeProductoInvalidos() {
@@ -193,12 +195,12 @@ class BoletaServiceTest {
                 new DetalleBoletaSolicitud(1L, -1),
                 new DetalleBoletaSolicitud(1L, null));
         for (var linea : invalidas) {
-            assertThrows(SolicitudInvalidaException.class, () -> servicio.crear(datos(List.of(linea))));
+            assertThrows(SolicitudInvalidaException.class, () -> servicio.cotizar(datos(List.of(linea))));
         }
         verify(repositorio, never()).saveAndFlush(any());
     }
     @Test void rechazaCabeceraInvalidaAntesDeGuardar() {
-        assertThrows(SolicitudInvalidaException.class, () -> servicio.crear(
+        assertThrows(SolicitudInvalidaException.class, () -> servicio.cotizar(
                 new BoletaSolicitud(null, " ", " ", " ", -1L, null, lineas())));
         verify(repositorio, never()).saveAndFlush(any());
     }
@@ -207,7 +209,7 @@ class BoletaServiceTest {
                 new cl.gaselvolcan.ms_pedidos.dto.catalogo.ProductoCatalogoRespuesta(1L, "P1", true,
                         new BigDecimal("99999999999999999.99"), null));
         var enorme = datos(List.of(new DetalleBoletaSolicitud(1L, 2)));
-        assertThrows(SolicitudInvalidaException.class, () -> servicio.crear(enorme));
+        assertThrows(SolicitudInvalidaException.class, () -> servicio.cotizar(enorme));
         assertThrows(SolicitudInvalidaException.class, () -> servicio.actualizar(1L, enorme));
         assertEquals("Direccion anterior", existente.getDireccion());
         assertEquals(BigDecimal.TEN, existente.getTotal());

@@ -13,6 +13,7 @@ import cl.gaselvolcan.ms_catalogo.repository.ProductoRepository;
 
 // Las propiedades de la prueba prevalecen sobre la conexion MySQL local.
 // create-drop solo opera sobre esta base H2 efimera en memoria.
+@org.springframework.test.context.TestPropertySource(properties = "internal.jwt.secret=clave-interna-sintetica-exclusiva-de-pruebas-123456")
 @SpringBootTest(properties = {
         // Clave solo para pruebas (la real va en el .env): la pide la seguridad JWT
         "jwt.secret=clave-solo-para-las-pruebas-de-gas-el-volcan",

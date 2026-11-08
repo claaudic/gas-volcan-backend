@@ -129,8 +129,9 @@ Desde `ms-pedidos`, en PowerShell:
 ```
 
 En Linux/macOS: `bash ./mvnw test`.
-Las pruebas de persistencia arrancan Spring con H2 efimera en memoria y una
-transaccion con rollback por prueba; no necesitan MySQL, Docker, catalogo ni usuarios.
+Las pruebas de persistencia arrancan Spring con H2 efimera en memoria; algunas
+usan rollback y las de coordinacion realizan commits reales con limpieza entre
+casos. No necesitan MySQL, Docker, catalogo ni usuarios.
 `create-drop` se limita a H2 de pruebas. Se comprueban dos productos, repositorios,
 FK interna, precision monetaria y cascadas. H2 no sustituye la comprobacion de
 compatibilidad MySQL; esta tambien se realizo mediante la prueba real descrita abajo.
@@ -139,12 +140,39 @@ Datos sinteticos de pruebas: no son ventas ni precios del catalogo original.
 No se incluyen datos iniciales. En pruebas, todas las consultas a catalogo se simulan;
 MockRestServiceServer verifica rutas, parametros, JSON, estados y fallos de transporte.
 
+## Autenticacion interna hacia catalogo
+
+Configurar `INTERNAL_STOCK_JWT_SECRET` en el entorno o `.env`, compartida solo
+con catalogo, de al menos 32 bytes UTF-8 y distinta de `JWT_SECRET`.
+No tiene valor secreto por defecto; si falta o no cumple estas reglas el servicio
+no arranca. No usar las claves sinteticas de las pruebas en el despliegue.
+
+`TokenServicioCatalogo` emite JWT HS256 de un minuto, con emisor/sujeto
+`ms-pedidos`, audiencia `ms-catalogo` y scopes de stock. El bean separado
+`catalogoInternoRestClient` agrega Authorization solo al host/puerto/esquema
+configurados en `PEDIDOS_CATALOGO_URL` y a rutas `/internal/v1/stock/**`.
+El cliente de lectura existente permanece sin cambios. No se reenvia el token
+del comprador, no se usa rol ADMINISTRADOR ni se generan usuarios de servicio.
+
+Las compras ya utilizan los endpoints internos de descuento, consulta y compensacion.
+Usar HTTPS fuera del desarrollo local y coordinar la rotacion de la clave;
+nunca registrar Authorization ni guardar claves en Git. El contrato completo
+esta documentado en `../ms-catalogo/SEGURIDAD-INTERNA.md`.
+
+## Compras durables
+
+POST exige `Idempotency-Key` UUID estable. Solo confirma despues de acreditar el
+descuento; los resultados desconocidos y compensaciones se recuperan desde registros
+durables. Consulta el contrato, estados tecnicos, cancelacion y despliegue en
+[COMPRAS-DURABLES.md](COMPRAS-DURABLES.md).
+
 ## API de boletas
 
 | Metodo | Ruta | Respuesta exitosa |
 | --- | --- | --- |
 | GET | `/api/v1/boletas` | 200 con lista, incluso vacia |
 | GET | `/api/v1/boletas/{id}` | 200 con cabecera y detalles |
+| GET | `/api/v1/boletas/{id}/stock` | 200 con estado tecnico y restitucion acreditada |
 | POST | `/api/v1/boletas` | 201 con boleta creada |
 | PUT | `/api/v1/boletas/{id}` | 200 con boleta reemplazada |
 | PUT | `/api/v1/boletas/{id}/estado` | 200 con el nuevo estado |
@@ -162,7 +190,9 @@ intentos elimina boletas ni detalles, incluso si el ID no existe.
 Para cancelar se utiliza `PUT /api/v1/boletas/{id}/estado` con
 `{"estado":"CANCELADO"}`, respetando los permisos y la transicion
 PENDIENTE -> CANCELADO. La boleta y sus detalles permanecen almacenados.
-Todavia no se implementa restitucion de stock.
+Con descuento registrado se programa compensacion idempotente durable; CANCELADO
+no implica restitucion completada. Consultar el endpoint `/stock`. Las boletas
+historicas sin registro de descuento nunca se restituyen automaticamente.
 
 Los errores devuelven `{ "estado": 400, "mensaje": "..." }`. Datos invalidos,
 IDs no positivos, producto inactivo, stock insuficiente y total fuera de precision
@@ -198,7 +228,7 @@ ejemplo son sinteticos y no se garantiza que existan. `total` no es un campo del
 si el JSON incluye ese atributo, se ignora expresamente. No se confia en el
 total enviado por el cliente. El DTO de respuesta si incluye el total calculado.
 
-POST y PUT consultan `GET /api/v1/productos/{id}` y
+La cotizacion inicial del POST y el PUT legado consultan `GET /api/v1/productos/{id}` y
 `GET /api/v1/productos/{id}/disponibilidad?cantidad=X`. Todas las lineas se
 validan antes de alterar la entidad. Las cantidades de IDs repetidos se suman
 para consultar disponibilidad y cada producto se consulta una vez por operacion.
@@ -210,8 +240,8 @@ actual no identifica un tipo de cliente para seleccionar tarifa comercial.
 El precio aplicado queda como historico en cada detalle. Un PUT completo vuelve
 a validar y valorar todas las lineas con los precios actuales. GET no
 consultan catalogo; el arranque tampoco necesita conectarse a ese servicio.
-No hay acceso a volcan_catalogo ni relaciones JPA externas. No se reservan ni
-descuentan existencias, por lo que no se garantiza stock frente a ventas concurrentes.
+No hay acceso directo a volcan_catalogo ni relaciones JPA externas. Las compras
+descuentan existencias mediante el contrato interno atomico de catalogo.
 La consulta del producto y la de disponibilidad no constituyen una instantanea atomica.
 No se valida aun la existencia del cliente o repartidor.
 La fecha proviene de la solicitud. El estado inicial es PENDIENTE; se permiten
@@ -221,7 +251,9 @@ boletas PENDIENTE y no permite cambiar el estado.
 
 PUT reemplaza toda la cabecera y todas las lineas, recalcula el total, conserva
 el ID de boleta y genera nuevos IDs de detalle. Las lineas anteriores se eliminan
-por orphanRemoval dentro de la transaccion. DELETE esta deshabilitado para
+por orphanRemoval dentro de la transaccion. Este reemplazo solo se permite en
+boletas historicas PENDIENTE sin operacion de stock; las vinculadas no admiten
+PUT general. DELETE esta deshabilitado para
 conservar el historial; la cancelacion se realiza mediante el estado CANCELADO.
 Los DTO evitan serializar entidades y referencias circulares.
 

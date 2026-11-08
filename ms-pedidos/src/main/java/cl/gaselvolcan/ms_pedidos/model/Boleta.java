@@ -30,6 +30,15 @@ public class Boleta {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    @jakarta.persistence.Version
+    @Column(nullable = false, columnDefinition = "bigint default 0")
+    private Long version;
+
+    @Column(name = "operacion_stock_id", length = 36, unique = true)
+    private String operacionStockId;
+    public String getOperacionStockId() { return operacionStockId; }
+    public void setOperacionStockId(String id) { operacionStockId = id; }
+
     // Referencia externa: no existe una FK ni relacion JPA a ms-usuarios.
     @NotNull
     @Positive

@@ -18,6 +18,26 @@ import org.springframework.web.servlet.resource.NoResourceFoundException;
 // Así el frontend siempre puede leer "mensaje", pase lo que pase.
 @RestControllerAdvice
 public class ManejadorErrores {
+    @ExceptionHandler(ConflictoStockException.class)
+    public ResponseEntity<ErrorRespuesta> conflicto(ConflictoStockException error) {
+        return responder(HttpStatus.CONFLICT, error.getMessage());
+    }
+
+    @ExceptionHandler(org.springframework.dao.OptimisticLockingFailureException.class)
+    public ResponseEntity<ErrorRespuesta> concurrencia(Exception error) {
+        return responder(HttpStatus.CONFLICT, "El producto cambio durante la operacion. Reintenta con la misma clave.");
+    }
+
+    @ExceptionHandler(org.springframework.dao.PessimisticLockingFailureException.class)
+    public ResponseEntity<ErrorRespuesta> bloqueo(Exception error) {
+        return responder(HttpStatus.SERVICE_UNAVAILABLE, "Operacion concurrente en curso. Reintenta con la misma clave.");
+    }
+
+    @ExceptionHandler({org.springframework.web.bind.MissingRequestHeaderException.class,
+            org.springframework.web.method.annotation.MethodArgumentConversionNotSupportedException.class})
+    public ResponseEntity<ErrorRespuesta> cabeceraInvalida(Exception error) {
+        return responder(HttpStatus.BAD_REQUEST, "Idempotency-Key debe contener un UUID valido.");
+    }
 
     private static final Logger log = LoggerFactory.getLogger(ManejadorErrores.class);
 
