@@ -87,6 +87,22 @@ Desde la carpeta `gateway` (con los microservicios encendidos):
 - **CORS** se maneja aquí, para `http://localhost:5173` (variable `CORS_ORIGENES`). Si un microservicio también manda su cabecera CORS, el Gateway deja una sola.
 - Las direcciones de los microservicios se cambian con `USUARIOS_URL`, `CATALOGO_URL` y `PEDIDOS_URL` (por ejemplo, al desplegar).
 
+## Seguridad en ms-catalogo (8082) y ms-pedidos (8083)
+
+Cada microservicio revisa el token por su cuenta (`config/FiltroJwt` y `config/SeguridadConfig`), con la **misma** `JWT_SECRET` de ms-usuarios. Antes de arrancarlos: `cp .env.example .env` en cada carpeta y escribir `MYSQL_PASSWORD` y `JWT_SECRET`.
+
+| Servicio | Ruta | Quién puede |
+|---|---|---|
+| ms-catalogo | `GET /api/v1/productos/**`, `GET /api/v1/categorias/**` | Todos (la tienda es pública) |
+| ms-catalogo | `POST · PUT · DELETE` productos y categorías | ADMINISTRADOR |
+| ms-pedidos | `POST /api/v1/boletas` (comprar) | Todos, también el visitante sin cuenta (ERS, RF-08) |
+| ms-pedidos | `GET /api/v1/boletas/**` | Cualquiera con sesión |
+| ms-pedidos | `PUT /api/v1/boletas/{id}` (estado, repartidor) | ADMINISTRADOR, DESPACHADORA, REPARTIDOR |
+| ms-pedidos | `DELETE /api/v1/boletas/{id}` | ADMINISTRADOR |
+
+- Sin token en una ruta protegida → **401**; con un rol que no corresponde → **403**; un token falso o vencido → **401** (incluso al comprar, para no comprar "como invitado" sin saberlo).
+- El token trae `sub` (correo), `id` y `rol`. En un controlador se obtiene con `@AuthenticationPrincipal UsuarioToken usuario`.
+
 ## ms-usuarios (puerto 8081)
 
 Con MySQL encendido, desde la carpeta `ms-usuarios`:

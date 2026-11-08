@@ -23,6 +23,8 @@ import cl.gaselvolcan.ms_pedidos.repository.DetalleBoletaRepository;
 
 // HTTP simulado + servicio + JPA reales, todo aislado en H2 en memoria.
 @SpringBootTest(properties = {
+        // Clave solo para pruebas (la real va en el .env): la pide la seguridad JWT
+        "jwt.secret=clave-solo-para-las-pruebas-de-gas-el-volcan",
         "spring.datasource.url=jdbc:h2:mem:pedidos-api-test;DB_CLOSE_DELAY=-1",
         "spring.datasource.driver-class-name=org.h2.Driver",
         "spring.datasource.username=sa", "spring.datasource.password=",

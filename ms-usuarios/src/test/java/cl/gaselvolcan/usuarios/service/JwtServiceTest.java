@@ -35,6 +35,15 @@ class JwtServiceTest {
     }
 
     @Test
+    void elTokenLlevaElIdDeLaCuenta() {
+        camila.setId(5L);
+
+        Claims datos = jwt.verificar(jwt.generar(camila));
+
+        assertEquals(5L, datos.get("id", Long.class));
+    }
+
+    @Test
     void elTokenVenceEn30Minutos() {
         Claims datos = jwt.verificar(jwt.generar(camila));
         long segundos = (datos.getExpiration().getTime() - datos.getIssuedAt().getTime()) / 1000;
