@@ -1,0 +1,7 @@
+# Lo que Docker NO copia al construir: se genera solo o tiene claves
+**/target
+**/.idea
+**/*.iml
+**/.env
+.git
+.claude
