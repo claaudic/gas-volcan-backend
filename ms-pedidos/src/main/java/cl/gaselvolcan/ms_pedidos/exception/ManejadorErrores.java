@@ -3,6 +3,7 @@ package cl.gaselvolcan.ms_pedidos.exception;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
@@ -23,6 +24,11 @@ public class ManejadorErrores {
     private static final Logger log = LoggerFactory.getLogger(ManejadorErrores.class);
 
     // --- Errores del negocio (los lanza el servicio) ---
+
+    @ExceptionHandler(AccessDeniedException.class)
+    public ResponseEntity<ErrorRespuesta> accesoDenegado(AccessDeniedException error) {
+        return responder(HttpStatus.FORBIDDEN, error.getMessage());
+    }
 
     @ExceptionHandler(RecursoNoEncontradoException.class)
     public ResponseEntity<ErrorRespuesta> noEncontrado(RecursoNoEncontradoException error) {
@@ -71,11 +77,12 @@ public class ManejadorErrores {
                 "El valor '" + error.getValue() + "' no es válido para " + error.getName() + ".");
     }
 
-    // Por ejemplo, PATCH en una ruta que solo acepta GET, PUT o DELETE
+    // Conserva las cabeceras del error de Spring MVC, incluida Allow.
     @ExceptionHandler(HttpRequestMethodNotSupportedException.class)
     public ResponseEntity<ErrorRespuesta> metodoNoPermitido(HttpRequestMethodNotSupportedException error) {
-        return responder(HttpStatus.METHOD_NOT_ALLOWED,
-                "El método " + error.getMethod() + " no está permitido en esta ruta.");
+        return ResponseEntity.status(HttpStatus.METHOD_NOT_ALLOWED).headers(error.getHeaders())
+                .body(new ErrorRespuesta(405,
+                        "El método " + error.getMethod() + " no está permitido en esta ruta."));
     }
 
     // Se envió algo que no es JSON (falta Content-Type: application/json)

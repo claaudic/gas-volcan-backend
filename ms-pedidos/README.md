@@ -42,7 +42,7 @@ java -version
 
 MySQL debe estar funcionando, con la base `volcan_pedidos`, el usuario configurado
 y las tablas creadas. Para crear o reemplazar boletas tambien debe responder
-ms-catalogo; listar, consultar y eliminar boletas no requiere llamar a catalogo.
+ms-catalogo; listar y consultar boletas no requiere llamar a catalogo.
 
 Ejemplo de configuracion temporal en PowerShell, sin contrasenas en el comando.
 La solicitud interactiva debe recibir la credencial del entorno que corresponda;
@@ -147,7 +147,22 @@ MockRestServiceServer verifica rutas, parametros, JSON, estados y fallos de tran
 | GET | `/api/v1/boletas/{id}` | 200 con cabecera y detalles |
 | POST | `/api/v1/boletas` | 201 con boleta creada |
 | PUT | `/api/v1/boletas/{id}` | 200 con boleta reemplazada |
-| DELETE | `/api/v1/boletas/{id}` | 204 sin cuerpo |
+| PUT | `/api/v1/boletas/{id}/estado` | 200 con el nuevo estado |
+| DELETE | `/api/v1/boletas/{id}` | Deshabilitado: 401/403/405 segun autenticacion y rol |
+
+### Conservacion y cancelacion
+
+La API no permite borrar fisicamente boletas ni sus detalles. Spring Security
+procesa primero la peticion, sin cambios en la configuracion JWT: DELETE devuelve
+401 sin autenticacion valida, 403 para roles sin permiso y 405 Method Not Allowed
+para ADMINISTRADOR autenticado, porque el controlador no ofrece ese metodo.
+El 405 conserva la cabecera Allow generada por Spring MVC. Ninguno de estos
+intentos elimina boletas ni detalles, incluso si el ID no existe.
+
+Para cancelar se utiliza `PUT /api/v1/boletas/{id}/estado` con
+`{"estado":"CANCELADO"}`, respetando los permisos y la transicion
+PENDIENTE -> CANCELADO. La boleta y sus detalles permanecen almacenados.
+Todavia no se implementa restitucion de stock.
 
 Los errores devuelven `{ "estado": 400, "mensaje": "..." }`. Datos invalidos,
 IDs no positivos, producto inactivo, stock insuficiente y total fuera de precision
@@ -155,7 +170,7 @@ responden 400; boletas o productos inexistentes, 404. Catalogo no disponible o
 tiempo de espera agotado responde 503; respuesta remota inesperada o incompleta, 502. JSON invalido responde 400; metodo no admitido 405; contenido no JSON 415.
 Los errores inesperados responden 500 sin divulgar detalles internos.
 
-POST/PUT requieren clienteId positivo, direccion, comuna, estado y fecha,
+POST/PUT requieren clienteId positivo, direccion, comuna y fecha,
 ademas de una lista no vacia de detalles validados. repartidorId es opcional.
 Cada linea requiere productoId positivo y cantidad entera positiva. El precio se
 obtiene exclusivamente del catalogo; cualquier atributo `precio` enviado se ignora. Se admiten dos o mas productos y tambien una
@@ -168,7 +183,7 @@ Solicitud sintetica de ejemplo (no es una venta ni utiliza precios reales):
   "clienteId": 10,
   "direccion": "Direccion de prueba 123",
   "comuna": "Comuna de prueba",
-  "estado": "ESTADO_PRUEBA",
+  "estado": "PENDIENTE",
   "repartidorId": null,
   "fecha": "2026-01-01T12:00:00",
   "detalles": [
@@ -193,19 +208,21 @@ Politica de precio vigente: se utiliza `precioOferta` si no es nulo; en otro
 caso, `precioResidencial`. No se calculan descuentos adicionales. El contrato
 actual no identifica un tipo de cliente para seleccionar tarifa comercial.
 El precio aplicado queda como historico en cada detalle. Un PUT completo vuelve
-a validar y valorar todas las lineas con los precios actuales. GET y DELETE no
+a validar y valorar todas las lineas con los precios actuales. GET no
 consultan catalogo; el arranque tampoco necesita conectarse a ese servicio.
 No hay acceso a volcan_catalogo ni relaciones JPA externas. No se reservan ni
 descuentan existencias, por lo que no se garantiza stock frente a ventas concurrentes.
 La consulta del producto y la de disponibilidad no constituyen una instantanea atomica.
 No se valida aun la existencia del cliente o repartidor.
-La fecha proviene de la solicitud; el estado sigue siendo texto obligatorio,
-sin un conjunto cerrado de valores ni reglas de transicion.
+La fecha proviene de la solicitud. El estado inicial es PENDIENTE; se permiten
+PENDIENTE -> EN_CAMINO -> ENTREGADO y PENDIENTE -> CANCELADO.
+ENTREGADO y CANCELADO son estados finales. El PUT general solo admite
+boletas PENDIENTE y no permite cambiar el estado.
 
 PUT reemplaza toda la cabecera y todas las lineas, recalcula el total, conserva
 el ID de boleta y genera nuevos IDs de detalle. Las lineas anteriores se eliminan
-por orphanRemoval dentro de la transaccion. DELETE elimina boleta y detalles en
-cascada; las restricciones de anulacion se definiran cuando se acuerden las reglas.
+por orphanRemoval dentro de la transaccion. DELETE esta deshabilitado para
+conservar el historial; la cancelacion se realiza mediante el estado CANCELADO.
 Los DTO evitan serializar entidades y referencias circulares.
 
 Las pruebas de etapa 2 cubren servicio, validacion DTO, errores HTTP y CRUD

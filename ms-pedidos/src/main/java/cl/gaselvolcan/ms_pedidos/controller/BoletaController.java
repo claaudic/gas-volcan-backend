@@ -3,7 +3,6 @@ package cl.gaselvolcan.ms_pedidos.controller;
 import java.util.List;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -14,6 +13,7 @@ import org.springframework.web.bind.annotation.RestController;
 import jakarta.validation.Valid;
 import cl.gaselvolcan.ms_pedidos.dto.BoletaRespuesta;
 import cl.gaselvolcan.ms_pedidos.dto.BoletaSolicitud;
+import cl.gaselvolcan.ms_pedidos.dto.EstadoBoletaSolicitud;
 import cl.gaselvolcan.ms_pedidos.service.BoletaService;
 
 @RestController
@@ -39,9 +39,9 @@ public class BoletaController {
         return servicio.actualizar(id, datos);
     }
 
-    @DeleteMapping("/{id}")
-    public ResponseEntity<Void> eliminar(@PathVariable Long id) {
-        servicio.eliminar(id);
-        return ResponseEntity.noContent().build();
+    @PutMapping("/{id}/estado")
+    public BoletaRespuesta actualizarEstado(@PathVariable Long id, @Valid @RequestBody EstadoBoletaSolicitud datos) {
+        return servicio.actualizarEstado(id, datos.estado());
     }
+
 }

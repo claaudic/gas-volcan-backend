@@ -116,15 +116,32 @@ class SeguridadTest {
         }
     }
 
+    @Test
+    void endpointEstadoConservaLosPermisosJwt() throws Exception {
+        String ruta = BOLETAS + "/1/estado";
+        mvc.perform(put(ruta).contentType(MediaType.APPLICATION_JSON).content("{\"estado\":\"EN_CAMINO\"}"))
+                .andExpect(status().isUnauthorized());
+        mvc.perform(put(ruta).header(HttpHeaders.AUTHORIZATION, token("CLIENTE"))
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"estado\":\"EN_CAMINO\"}"))
+                .andExpect(status().isForbidden());
+        for (String rol : new String[] {"REPARTIDOR", "DESPACHADORA", "ADMINISTRADOR"}) {
+            mvc.perform(put(ruta).header(HttpHeaders.AUTHORIZATION, token(rol))
+                            .contentType(MediaType.APPLICATION_JSON).content("{\"estado\":\"EN_CAMINO\"}"))
+                    .andExpect(status().isOk());
+        }
+    }
+
     // --- Eliminar ---
 
     @Test
-    void soloElAdministradorEliminaBoletas() throws Exception {
+    void ningunRolEliminaBoletas() throws Exception {
+        mvc.perform(delete(BOLETAS + "/1"))
+                .andExpect(status().isUnauthorized());
         mvc.perform(delete(BOLETAS + "/1").header(HttpHeaders.AUTHORIZATION, token("DESPACHADORA")))
                 .andExpect(status().isForbidden());
 
         mvc.perform(delete(BOLETAS + "/1").header(HttpHeaders.AUTHORIZATION, token("ADMINISTRADOR")))
-                .andExpect(status().isNoContent());
+                .andExpect(status().isMethodNotAllowed());
     }
 
     // --- Quién es el usuario ---

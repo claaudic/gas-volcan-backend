@@ -196,11 +196,9 @@ class CatalogoIntegrationTest {
                 new DetalleBoletaSolicitud(1L, 1), new DetalleBoletaSolicitud(2L, 1))));
         intacta();
     }
-    @Test void consultarYEliminarBoletasNoRequiereCatalogo() {
+    @Test void consultarBoletasNoRequiereCatalogo() {
         when(repositorio.findAll()).thenReturn(List.of(existente));
         assertEquals(1, servicio.listar().size());
         servicio.buscarPorId(1L);
-        servicio.eliminar(1L);
-        verify(repositorio).delete(existente);
     }
 }

@@ -35,7 +35,7 @@ import cl.gaselvolcan.ms_pedidos.repository.DetalleBoletaRepository;
 class BoletaCrudIntegrationTest {
     private static final String RUTA = "/api/v1/boletas";
     private static final String DATOS = """
-            {"clienteId":10,"direccion":"Direccion 123","comuna":"Comuna","estado":"ESTADO_PRUEBA",
+            {"clienteId":10,"direccion":"Direccion 123","comuna":"Comuna","estado":"PENDIENTE",
              "repartidorId":null,"fecha":"2026-01-01T12:00:00","total":0,
              "detalles":[{"productoId":91001,"cantidad":2,"precio":19.99},
                          {"productoId":91002,"cantidad":3,"precio":3.10}]}
@@ -67,7 +67,7 @@ class BoletaCrudIntegrationTest {
         mvc.perform(get(RUTA + "/" + id)).andExpect(status().isOk()).andExpect(jsonPath("$.detalles.length()").value(2));
         mvc.perform(get(RUTA)).andExpect(status().isOk()).andExpect(jsonPath("$.length()").value(1));
         String actualizado = """
-                {"clienteId":11,"direccion":"Otra direccion","comuna":"Otra comuna","estado":"OTRO_ESTADO",
+                {"clienteId":11,"direccion":"Otra direccion","comuna":"Otra comuna","estado":"PENDIENTE",
                  "repartidorId":20,"fecha":"2026-02-01T10:00:00","total":999999,
                  "detalles":[{"productoId":91003,"cantidad":3,"precio":4.00}]}
                 """;
@@ -78,11 +78,37 @@ class BoletaCrudIntegrationTest {
         entityManager.clear();
         assertEquals(1, detalles.findByBoletaId(id).size());
         for (Long anterior : idsViejos) assertFalse(detalles.existsById(anterior));
-        mvc.perform(delete(RUTA + "/" + id)).andExpect(status().isNoContent());
+        mvc.perform(delete(RUTA + "/" + id)).andExpect(status().isMethodNotAllowed());
         entityManager.clear();
-        assertFalse(boletas.existsById(id));
-        assertTrue(detalles.findByBoletaId(id).isEmpty());
-        mvc.perform(get(RUTA + "/" + id)).andExpect(status().isNotFound()).andExpect(jsonPath("$.estado").value(404));
+        assertTrue(boletas.existsById(id));
+        assertEquals(1, detalles.findByBoletaId(id).size());
+        mvc.perform(get(RUTA + "/" + id)).andExpect(status().isOk());
+    }
+
+    @Test void endpointEstadoPersisteSinRecalcularYRechazaTransicionesInvalidas() throws Exception {
+        var mvc = MockMvcBuilders.webAppContextSetup(contexto).build();
+        var resultado = mvc.perform(post(RUTA).contentType(MediaType.APPLICATION_JSON).content(DATOS))
+                .andExpect(status().isCreated()).andExpect(jsonPath("$.estado").value("PENDIENTE")).andReturn();
+        long id = JsonMapper.builder().build().readTree(resultado.getResponse().getContentAsString()).get("id").asLong();
+        entityManager.clear();
+        var lineas = detalles.findByBoletaId(id).stream().map(d -> d.getId()).toList();
+        clearInvocations(catalogo);
+        for (String estado : java.util.List.of("EN_CAMINO", "ENTREGADO")) {
+            mvc.perform(put(RUTA + "/" + id + "/estado").contentType(MediaType.APPLICATION_JSON)
+                            .content("{\"estado\":\"" + estado + "\"}"))
+                    .andExpect(status().isOk()).andExpect(jsonPath("$.estado").value(estado))
+                    .andExpect(jsonPath("$.total").value(49.28));
+            entityManager.clear();
+            assertEquals(estado, boletas.findById(id).orElseThrow().getEstado());
+            assertEquals(lineas, detalles.findByBoletaId(id).stream().map(d -> d.getId()).toList());
+        }
+        for (String cuerpo : java.util.List.of("{\"estado\":\"PENDIENTE\"}", "{\"estado\":\"DESCONOCIDO\"}", "{}", "{\"estado\":null}")) {
+            mvc.perform(put(RUTA + "/" + id + "/estado").contentType(MediaType.APPLICATION_JSON).content(cuerpo))
+                    .andExpect(status().isBadRequest()).andExpect(jsonPath("$.estado").value(400));
+        }
+        entityManager.clear();
+        assertEquals("ENTREGADO", boletas.findById(id).orElseThrow().getEstado());
+        verifyNoInteractions(catalogo);
     }
 
     @Test void totalDesbordadoNoCreaBoletasParciales() throws Exception {

@@ -19,14 +19,14 @@ import cl.gaselvolcan.ms_pedidos.service.BoletaService;
 class BoletaControllerTest {
     private static final String RUTA = "/api/v1/boletas";
     private static final String DATOS = """
-            {"clienteId":10,"direccion":"Direccion 123","comuna":"Comuna","estado":"ESTADO_PRUEBA",
+            {"clienteId":10,"direccion":"Direccion 123","comuna":"Comuna","estado":"PENDIENTE",
              "repartidorId":null,"fecha":"2026-01-01T12:00:00",
              "detalles":[{"productoId":91001,"cantidad":2,"precio":19.99},
                          {"productoId":91002,"cantidad":3,"precio":3.10}]}
             """;
     private BoletaService servicio;
     private MockMvc mvc;
-    private final BoletaRespuesta respuesta = new BoletaRespuesta(1L, 10L, "Direccion 123", "Comuna", "ESTADO_PRUEBA",
+    private final BoletaRespuesta respuesta = new BoletaRespuesta(1L, 10L, "Direccion 123", "Comuna", "PENDIENTE",
             null, LocalDateTime.of(2026, 1, 1, 12, 0), new BigDecimal("49.28"),
             List.of(new DetalleBoletaRespuesta(1L, 91001L, 2, new BigDecimal("19.99")),
                     new DetalleBoletaRespuesta(2L, 91002L, 3, new BigDecimal("3.10"))));
@@ -62,15 +62,14 @@ class BoletaControllerTest {
                 .andExpect(status().isOk()).andExpect(jsonPath("$.total").value(49.28));
         verify(servicio).actualizar(eq(1L), any());
     }
-    @Test void eliminar204SinCuerpo() throws Exception {
-        mvc.perform(delete(RUTA + "/1")).andExpect(status().isNoContent()).andExpect(content().string(""));
-        verify(servicio).eliminar(1L);
+    @Test void eliminar405NoInvocaServicio() throws Exception {
+        mvc.perform(delete(RUTA + "/1")).andExpect(status().isMethodNotAllowed());
+        verifyNoInteractions(servicio);
     }
     @Test void recursosInexistentes404() throws Exception {
         when(servicio.buscarPorId(99L)).thenThrow(new RecursoNoEncontradoException("No existe"));
         when(servicio.actualizar(eq(99L), any())).thenThrow(new RecursoNoEncontradoException("No existe"));
-        doThrow(new RecursoNoEncontradoException("No existe")).when(servicio).eliminar(99L);
-        for (var request : List.of(get(RUTA + "/99"), put(RUTA + "/99").contentType(MediaType.APPLICATION_JSON).content(DATOS), delete(RUTA + "/99"))) {
+        for (var request : List.of(get(RUTA + "/99"), put(RUTA + "/99").contentType(MediaType.APPLICATION_JSON).content(DATOS))) {
             mvc.perform(request).andExpect(status().isNotFound()).andExpect(jsonPath("$.estado").value(404))
                     .andExpect(jsonPath("$.mensaje").value("No existe"));
         }
@@ -79,7 +78,7 @@ class BoletaControllerTest {
         var invalidos = List.of(
                 DATOS.replace("\"clienteId\":10", "\"clienteId\":null"),
                 DATOS.replace("Direccion 123", " "), DATOS.replace("Comuna", " "),
-                DATOS.replace("ESTADO_PRUEBA", " "),
+                DATOS.replace("PENDIENTE", " "),
                 DATOS.replace("2026-01-01T12:00:00", "fecha-invalida"),
                 DATOS.replace("\"repartidorId\":null", "\"repartidorId\":-1"),
                 DATOS.replace("\"cantidad\":2", "\"cantidad\":0"),

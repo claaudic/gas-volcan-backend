@@ -6,4 +6,5 @@ import cl.gaselvolcan.ms_pedidos.model.Boleta;
 
 public interface BoletaRepository extends JpaRepository<Boleta, Long> {
     List<Boleta> findByClienteId(Long clienteId);
+    List<Boleta> findByRepartidorId(Long repartidorId);
 }

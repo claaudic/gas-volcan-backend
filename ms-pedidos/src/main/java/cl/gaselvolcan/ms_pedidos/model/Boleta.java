@@ -46,11 +46,11 @@ public class Boleta {
     @Column(nullable = false, length = 100)
     private String comuna;
 
-    // Las transiciones y el conjunto de estados se definiran en la etapa de negocio.
+    // Se conserva la columna de texto para no alterar el esquema existente.
     @NotBlank
     @Size(max = 50)
     @Column(nullable = false, length = 50)
-    private String estado;
+    private String estado = EstadoBoleta.PENDIENTE.name();
 
     @Positive
     @Column(name = "repartidor_id")

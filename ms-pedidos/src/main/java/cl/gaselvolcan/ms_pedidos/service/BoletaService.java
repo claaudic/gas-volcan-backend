@@ -17,7 +17,11 @@ import cl.gaselvolcan.ms_pedidos.exception.RecursoNoEncontradoException;
 import cl.gaselvolcan.ms_pedidos.exception.SolicitudInvalidaException;
 import cl.gaselvolcan.ms_pedidos.model.Boleta;
 import cl.gaselvolcan.ms_pedidos.model.DetalleBoleta;
+import cl.gaselvolcan.ms_pedidos.model.EstadoBoleta;
 import cl.gaselvolcan.ms_pedidos.repository.BoletaRepository;
+import cl.gaselvolcan.ms_pedidos.config.UsuarioToken;
+import org.springframework.security.access.AccessDeniedException;
+import org.springframework.security.core.context.SecurityContextHolder;
 
 @Service
 @Transactional
@@ -36,15 +40,25 @@ public class BoletaService {
 
     @Transactional(readOnly = true)
     public List<BoletaRespuesta> listar() {
+        Long repartidorId = repartidorAutenticado();
+        if (repartidorId != null) {
+            return repositorio.findByRepartidorId(repartidorId).stream().map(BoletaRespuesta::desde).toList();
+        }
         return repositorio.findAll().stream().map(BoletaRespuesta::desde).toList();
     }
 
     @Transactional(readOnly = true)
     public BoletaRespuesta buscarPorId(Long id) {
-        return BoletaRespuesta.desde(obtener(id));
+        Long repartidorId = repartidorAutenticado();
+        Boleta boleta = obtener(id);
+        verificarAsignacion(boleta, repartidorId);
+        return BoletaRespuesta.desde(boleta);
     }
 
     public BoletaRespuesta crear(BoletaSolicitud datos) {
+        if (datos != null && datos.estado() != null && !EstadoBoleta.PENDIENTE.name().equals(datos.estado())) {
+            throw new SolicitudInvalidaException("La boleta debe crearse en estado PENDIENTE.");
+        }
         var precios = validarYConsultarPrecios(datos);
         BigDecimal total = calcularTotal(datos, precios);
         Boleta boleta = new Boleta();
@@ -53,7 +67,16 @@ public class BoletaService {
     }
 
     public BoletaRespuesta actualizar(Long id, BoletaSolicitud datos) {
+        if (repartidorAutenticado() != null) {
+            throw new AccessDeniedException("El repartidor no puede reemplazar una boleta.");
+        }
         Boleta boleta = obtener(id);
+        if (!EstadoBoleta.PENDIENTE.name().equals(boleta.getEstado())) {
+            throw new SolicitudInvalidaException("Solo se puede modificar una boleta en estado PENDIENTE.");
+        }
+        if (datos != null && datos.estado() != null && !datos.estado().equals(boleta.getEstado())) {
+            throw new SolicitudInvalidaException("Usa el endpoint de estado para cambiar el estado de la boleta.");
+        }
         // Validar antes de alterar una entidad administrada por JPA.
         var precios = validarYConsultarPrecios(datos);
         BigDecimal total = calcularTotal(datos, precios);
@@ -61,9 +84,42 @@ public class BoletaService {
         return BoletaRespuesta.desde(repositorio.saveAndFlush(boleta));
     }
 
-    public void eliminar(Long id) {
-        repositorio.delete(obtener(id));
-        repositorio.flush();
+    public BoletaRespuesta actualizarEstado(Long id, EstadoBoleta destino) {
+        Long repartidorId = repartidorAutenticado();
+        Boleta boleta = obtener(id);
+        verificarAsignacion(boleta, repartidorId);
+        EstadoBoleta actual;
+        try {
+            actual = EstadoBoleta.valueOf(boleta.getEstado());
+        } catch (IllegalArgumentException | NullPointerException error) {
+            throw new SolicitudInvalidaException("El estado actual de la boleta no es valido.");
+        }
+        if (destino == null || !actual.permite(destino)) {
+            throw new SolicitudInvalidaException("Transicion de estado no permitida: " + actual + " -> " + destino + ".");
+        }
+        boleta.setEstado(destino.name());
+        return BoletaRespuesta.desde(repositorio.saveAndFlush(boleta));
+    }
+
+    // JWT define id como Usuario.id; repartidorId es esa referencia externa.
+    // La autenticacion HTTP sigue a cargo de SeguridadConfig y FiltroJwt.
+    private Long repartidorAutenticado() {
+        var autenticacion = SecurityContextHolder.getContext().getAuthentication();
+        if (autenticacion == null || autenticacion.getAuthorities().stream()
+                .noneMatch(a -> "ROLE_REPARTIDOR".equals(a.getAuthority()))) {
+            return null;
+        }
+        if (!(autenticacion.getPrincipal() instanceof UsuarioToken usuario)
+                || usuario.id() == null || usuario.id() <= 0) {
+            throw new AccessDeniedException("El repartidor necesita un token con un ID valido. Inicia sesion nuevamente.");
+        }
+        return usuario.id();
+    }
+
+    private void verificarAsignacion(Boleta boleta, Long repartidorId) {
+        if (repartidorId != null && !repartidorId.equals(boleta.getRepartidorId())) {
+            throw new AccessDeniedException("La boleta no esta asignada al repartidor autenticado.");
+        }
     }
 
     private Boleta obtener(Long id) {
@@ -149,7 +205,6 @@ public class BoletaService {
         boleta.setClienteId(datos.clienteId());
         boleta.setDireccion(datos.direccion().trim());
         boleta.setComuna(datos.comuna().trim());
-        boleta.setEstado(datos.estado().trim());
         boleta.setRepartidorId(datos.repartidorId());
         boleta.setFecha(datos.fecha());
         boleta.setTotal(total);

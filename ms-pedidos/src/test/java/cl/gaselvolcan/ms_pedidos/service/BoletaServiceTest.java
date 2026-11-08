@@ -36,7 +36,7 @@ class BoletaServiceTest {
                 new cl.gaselvolcan.ms_pedidos.dto.catalogo.DisponibilidadCatalogoRespuesta(
                         c.getArgument(0), "P" + c.getArgument(0), c.getArgument(1), Integer.MAX_VALUE, true, true));
         servicio = new BoletaService(repositorio, factory.getValidator(), catalogo);
-        existente = new Boleta(10L, "Direccion anterior", "Comuna anterior", "ESTADO_PRUEBA",
+        existente = new Boleta(10L, "Direccion anterior", "Comuna anterior", "PENDIENTE",
                 null, LocalDateTime.of(2026, 1, 1, 12, 0), BigDecimal.TEN);
         existente.setId(1L);
         existente.agregarDetalle(new DetalleBoleta(100L, 1, BigDecimal.TEN));
@@ -50,7 +50,7 @@ class BoletaServiceTest {
                 new DetalleBoletaSolicitud(91002L, 3));
     }
     private BoletaSolicitud datos(List<DetalleBoletaSolicitud> detalles) {
-        return new BoletaSolicitud(10L, " Direccion 123 ", " Comuna ", " ESTADO_PRUEBA ",
+        return new BoletaSolicitud(10L, " Direccion 123 ", " Comuna ", "PENDIENTE",
                 null, LocalDateTime.of(2026, 1, 1, 12, 0), detalles);
     }
 
@@ -61,13 +61,81 @@ class BoletaServiceTest {
         assertEquals(91001L, respuesta.detalles().getFirst().productoId());
         assertEquals("Direccion 123", respuesta.direccion());
         assertEquals("Comuna", respuesta.comuna());
-        assertEquals("ESTADO_PRUEBA", respuesta.estado());
+        assertEquals("PENDIENTE", respuesta.estado());
         assertNull(respuesta.repartidorId());
         verify(repositorio).saveAndFlush(argThat(b -> b.getDetalles().stream().allMatch(d -> d.getBoleta() == b)));
     }
+    @Test void creaPendienteSinEstadoYRechazaOtroEstadoInicial() {
+        assertEquals("PENDIENTE", servicio.crear(new BoletaSolicitud(10L, "D", "C", null,
+                null, LocalDateTime.now(), lineas())).estado());
+        for (String estado : List.of("EN_CAMINO", "ENTREGADO", "CANCELADO")) {
+            assertThrows(SolicitudInvalidaException.class, () -> servicio.crear(
+                    new BoletaSolicitud(10L, "D", "C", estado, null, LocalDateTime.now(), lineas())));
+        }
+    }
+
+    @Test void compruebaTodasLasTransicionesSinCambiarImportesNiDetalles() {
+        var detalle = existente.getDetalles().getFirst();
+        for (EstadoBoleta origen : EstadoBoleta.values()) {
+            for (EstadoBoleta destino : EstadoBoleta.values()) {
+                existente.setEstado(origen.name());
+                clearInvocations(repositorio);
+                boolean permitida = (origen == EstadoBoleta.PENDIENTE
+                        && (destino == EstadoBoleta.EN_CAMINO || destino == EstadoBoleta.CANCELADO))
+                        || (origen == EstadoBoleta.EN_CAMINO && destino == EstadoBoleta.ENTREGADO);
+                if (permitida) {
+                    assertEquals(destino.name(), servicio.actualizarEstado(1L, destino).estado());
+                    verify(repositorio).saveAndFlush(existente);
+                } else {
+                    assertThrows(SolicitudInvalidaException.class, () -> servicio.actualizarEstado(1L, destino));
+                    assertEquals(origen.name(), existente.getEstado());
+                    verify(repositorio, never()).saveAndFlush(any());
+                }
+                assertEquals(BigDecimal.TEN, existente.getTotal());
+                assertSame(detalle, existente.getDetalles().getFirst());
+                assertEquals(BigDecimal.TEN, detalle.getPrecio());
+                assertEquals(1, detalle.getCantidad());
+                assertEquals("Direccion anterior", existente.getDireccion());
+            }
+        }
+        verifyNoInteractions(catalogo);
+    }
+
+    @Test void putGeneralRechazaEstadosNoPendientesAntesDeConsultarCatalogo() {
+        for (String estado : List.of("EN_CAMINO", "ENTREGADO", "CANCELADO")) {
+            existente.setEstado(estado);
+            var detalle = existente.getDetalles().getFirst();
+            for (String solicitado : new String[] {estado, "PENDIENTE", null}) {
+                assertThrows(SolicitudInvalidaException.class, () -> servicio.actualizar(1L,
+                        new BoletaSolicitud(10L, "Cambio", "C", solicitado, 22L, LocalDateTime.now(), lineas())));
+                assertEquals(estado, existente.getEstado());
+                assertEquals("Direccion anterior", existente.getDireccion());
+                assertEquals(BigDecimal.TEN, existente.getTotal());
+                assertSame(detalle, existente.getDetalles().getFirst());
+                assertNull(existente.getRepartidorId());
+            }
+        }
+        verifyNoInteractions(catalogo);
+        verify(repositorio, never()).saveAndFlush(any());
+    }
+
+    @Test void putGeneralNoPermiteCambiarEstado() {
+        assertThrows(SolicitudInvalidaException.class, () -> servicio.actualizar(1L,
+                new BoletaSolicitud(10L, "D", "C", "ENTREGADO", null, LocalDateTime.now(), lineas())));
+        assertEquals("PENDIENTE", existente.getEstado());
+        verifyNoInteractions(catalogo);
+        verify(repositorio, never()).saveAndFlush(any());
+    }
+
+    @Test void estadoNuloOBoletaInexistenteNoSeGuarda() {
+        assertThrows(SolicitudInvalidaException.class, () -> servicio.actualizarEstado(1L, null));
+        assertThrows(RecursoNoEncontradoException.class, () -> servicio.actualizarEstado(99L, EstadoBoleta.EN_CAMINO));
+        verify(repositorio, never()).saveAndFlush(any());
+    }
+
     @Test void guardaRepartidorYFechaRecibidos() {
         var fecha = LocalDateTime.of(2026, 2, 3, 10, 30);
-        var respuesta = servicio.crear(new BoletaSolicitud(10L, "Direccion", "Comuna", "ESTADO_PRUEBA", 20L, fecha, lineas()));
+        var respuesta = servicio.crear(new BoletaSolicitud(10L, "Direccion", "Comuna", "PENDIENTE", 20L, fecha, lineas()));
         assertEquals(20L, respuesta.repartidorId());
         assertEquals(fecha, respuesta.fecha());
     }
@@ -97,15 +165,9 @@ class BoletaServiceTest {
         when(repositorio.findAll()).thenReturn(List.of());
         assertTrue(servicio.listar().isEmpty());
     }
-    @Test void eliminaBoletaExistente() {
-        servicio.eliminar(1L);
-        verify(repositorio).delete(existente);
-        verify(repositorio).flush();
-    }
-    @Test void buscarActualizarEliminarInexistentes() {
+    @Test void buscarActualizarInexistentes() {
         assertThrows(RecursoNoEncontradoException.class, () -> servicio.buscarPorId(99L));
         assertThrows(RecursoNoEncontradoException.class, () -> servicio.actualizar(99L, datos(lineas())));
-        assertThrows(RecursoNoEncontradoException.class, () -> servicio.eliminar(99L));
         verify(repositorio, never()).saveAndFlush(any());
         verify(repositorio, never()).delete(any());
     }
@@ -113,7 +175,6 @@ class BoletaServiceTest {
         for (Long id : new Long[] {null, 0L, -1L}) {
             assertThrows(SolicitudInvalidaException.class, () -> servicio.buscarPorId(id));
             assertThrows(SolicitudInvalidaException.class, () -> servicio.actualizar(id, datos(lineas())));
-            assertThrows(SolicitudInvalidaException.class, () -> servicio.eliminar(id));
         }
         verifyNoInteractions(repositorio);
     }
