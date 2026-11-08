@@ -161,6 +161,15 @@ class SeguridadTest {
     }
 
     @Test
+    void laRutaDeSaludNoPideToken() throws Exception {
+        // En esta prueba Actuator no está cargado (404), pero lo importante es que la
+        // seguridad NO la bloquea: no responde 401 ni 403
+        mvc.perform(get("/actuator/health"))
+                .andExpect(result -> org.junit.jupiter.api.Assertions.assertTrue(
+                        result.getResponse().getStatus() != 401 && result.getResponse().getStatus() != 403));
+    }
+
+    @Test
     void reactEnElPuerto5173PuedeLlamarALaApi() throws Exception {
         mvc.perform(options("/api/v1/usuarios")
                         .header(HttpHeaders.ORIGIN, "http://localhost:5173")

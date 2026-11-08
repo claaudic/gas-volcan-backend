@@ -39,6 +39,8 @@ public class SeguridadConfig {
                 .requestMatchers(HttpMethod.GET, "/api/v1/productos/**", "/api/v1/categorias/**").permitAll()
                 // Swagger y la página de error
                 .requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html", "/error").permitAll()
+                // Para saber si el servicio está vivo (Docker, despliegue): sin datos internos
+                .requestMatchers(HttpMethod.GET, "/actuator/health").permitAll()
                 // Crear, editar y eliminar productos o categorías: solo el administrador
                 .requestMatchers("/api/v1/**").hasRole("ADMINISTRADOR")
                 .anyRequest().authenticated())

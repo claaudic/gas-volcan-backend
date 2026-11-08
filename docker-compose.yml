@@ -1,16 +1,131 @@
+# Todo el backend de Gas El Volcán con un solo comando:
+#   docker compose up -d --build
+# Las claves se leen del archivo .env de esta carpeta (ver .env.example; no se sube a GitHub).
+#
+# Solo el Gateway (8080) y MySQL (3306, para IntelliJ en desarrollo) quedan abiertos
+# hacia afuera. Los microservicios se hablan por dentro de Docker, por su nombre
+# (http://ms-usuarios:8081), y desde internet no se pueden llamar directo.
+
+# Lo que comparten los 3 microservicios
+x-microservicio: &microservicio
+  build:
+    context: .
+  restart: unless-stopped
+  depends_on:
+    mysql:
+      condition: service_healthy
+
 services:
   mysql:
     image: mysql:8.4
     container_name: volcan-mysql
     environment:
-      MYSQL_ROOT_PASSWORD: root123
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
       MYSQL_USER: volcan
-      MYSQL_PASSWORD: volcan123
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
     ports:
       - "3306:3306"
     volumes:
       - volcan-datos:/var/lib/mysql
       - ./mysql-init:/docker-entrypoint-initdb.d
+    # "Sano" cuando MySQL ya responde: recién ahí arrancan los microservicios
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h localhost -uroot -p$$MYSQL_ROOT_PASSWORD --silent"]
+      interval: 5s
+      retries: 20
+
+  ms-usuarios:
+    <<: *microservicio
+    build:
+      context: .
+      args:
+        SERVICIO: ms-usuarios
+    container_name: volcan-ms-usuarios
+    environment:
+      USUARIOS_DB_URL: jdbc:mysql://mysql:3306/volcan_usuarios
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+      JWT_SECRET: ${JWT_SECRET}
+      JAVA_TOOL_OPTIONS: -Xmx384m
+    healthcheck:
+      test: ["CMD", "curl", "-fs", "http://localhost:8081/actuator/health"]
+      interval: 10s
+      start_period: 40s
+      retries: 12
+
+  ms-catalogo:
+    <<: *microservicio
+    build:
+      context: .
+      args:
+        SERVICIO: ms-catalogo
+    container_name: volcan-ms-catalogo
+    environment:
+      CATALOGO_DB_HOST: mysql
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+      JWT_SECRET: ${JWT_SECRET}
+      # Clave privada entre pedidos y catálogo para descontar stock (tarea 09 de Nicolás)
+      INTERNAL_STOCK_JWT_SECRET: ${INTERNAL_STOCK_JWT_SECRET}
+      JAVA_TOOL_OPTIONS: -Xmx384m
+    healthcheck:
+      test: ["CMD", "curl", "-fs", "http://localhost:8082/actuator/health"]
+      interval: 10s
+      start_period: 40s
+      retries: 12
+
+  ms-pedidos:
+    <<: *microservicio
+    build:
+      context: .
+      args:
+        SERVICIO: ms-pedidos
+    container_name: volcan-ms-pedidos
+    environment:
+      PEDIDOS_DB_HOST: mysql
+      PEDIDOS_CATALOGO_URL: http://ms-catalogo:8082
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+      JWT_SECRET: ${JWT_SECRET}
+      INTERNAL_STOCK_JWT_SECRET: ${INTERNAL_STOCK_JWT_SECRET}
+      JAVA_TOOL_OPTIONS: -Xmx384m
+    depends_on:
+      mysql:
+        condition: service_healthy
+      ms-catalogo:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-fs", "http://localhost:8083/actuator/health"]
+      interval: 10s
+      start_period: 40s
+      retries: 12
+
+  gateway:
+    build:
+      context: .
+      args:
+        SERVICIO: gateway
+    container_name: volcan-gateway
+    restart: unless-stopped
+    environment:
+      USUARIOS_URL: http://ms-usuarios:8081
+      CATALOGO_URL: http://ms-catalogo:8082
+      PEDIDOS_URL: http://ms-pedidos:8083
+      # Desde qué página se puede usar la API (en la EC2: http://IP-PUBLICA)
+      CORS_ORIGENES: ${CORS_ORIGENES:-http://localhost:5173}
+      JAVA_TOOL_OPTIONS: -Xmx256m
+    ports:
+      - "${GATEWAY_PUERTO:-8080}:8080"
+    # El Gateway arranca cuando los 3 microservicios ya están vivos
+    depends_on:
+      ms-usuarios:
+        condition: service_healthy
+      ms-catalogo:
+        condition: service_healthy
+      ms-pedidos:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-fs", "http://localhost:8080/actuator/health"]
+      interval: 10s
+      start_period: 30s
+      retries: 12
 
 volumes:
   volcan-datos:

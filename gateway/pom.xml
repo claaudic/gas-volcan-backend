@@ -31,6 +31,11 @@
 		<spring-cloud.version>2025.1.4</spring-cloud.version>
 	</properties>
 	<dependencies>
+		<!-- Actuator: /actuator/health dice si el servicio está vivo (Docker y el despliegue lo usan) -->
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-actuator</artifactId>
+		</dependency>
 		<dependency>
 			<groupId>org.springframework.cloud</groupId>
 			<artifactId>spring-cloud-starter-gateway-server-webflux</artifactId>

@@ -36,6 +36,22 @@ gas-volcan-backend/
 - Docker Desktop (abierto antes de ejecutar los comandos)
 - JDK 21
 
+## Encender todo con Docker (un solo comando)
+
+Además de usar IntelliJ, todo el backend (MySQL + 3 microservicios + Gateway) se puede encender con Docker. Así se despliega en la EC2.
+
+```bash
+cp .env.example .env          # solo la primera vez; escribir las claves reales
+docker compose up -d --build  # construye y enciende los 5 servicios
+docker compose ps             # deben quedar "healthy"
+```
+
+- `Dockerfile` (uno solo, en la raíz) sirve para los 4 servicios: compila con Maven y ejecuta con Java 21, sin ser root.
+- Orden de arranque: MySQL → ms-usuarios y ms-catalogo → ms-pedidos → Gateway. Cada uno espera a que el anterior responda en `/actuator/health`.
+- Solo quedan abiertos el **Gateway (8080)** y MySQL (3306, para desarrollo). Los microservicios se hablan por dentro de Docker.
+- Si IntelliJ ya está usando el 8080, cambiar el puerto con `GATEWAY_PUERTO=18080` en el `.env`.
+- Apagar: `docker compose down` (los datos de MySQL se mantienen en el volumen).
+
 ## Base de datos (MySQL en Docker)
 
 Desde la carpeta `gas-volcan-backend`:

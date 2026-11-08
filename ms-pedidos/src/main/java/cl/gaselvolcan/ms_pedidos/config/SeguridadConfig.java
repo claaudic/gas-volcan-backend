@@ -36,6 +36,8 @@ public class SeguridadConfig {
             // Las reglas se leen de arriba hacia abajo: gana la primera que calza
             .authorizeHttpRequests(rutas -> rutas
                 .requestMatchers("/error").permitAll()
+                // Para saber si el servicio está vivo (Docker, despliegue): sin datos internos
+                .requestMatchers(HttpMethod.GET, "/actuator/health").permitAll()
                 // Comprar: también el visitante sin cuenta (ERS, RF-08). Si viene con
                 // sesión, el cliente se identifica con su token (UsuarioToken)
                 .requestMatchers(HttpMethod.POST, "/api/v1/boletas").permitAll()
