@@ -24,7 +24,11 @@ public class JwtService {
 
     public JwtService(@Value("${jwt.secret}") String secreto,
                       @Value("${jwt.expiracion-minutos}") long minutos) {
-        // HS256 necesita una clave de al menos 32 bytes (si es más corta, falla al arrancar)
+        // HS256 necesita una clave de al menos 32 bytes. Si falta, se avisa con un mensaje claro.
+        if (secreto == null || secreto.getBytes(StandardCharsets.UTF_8).length < 32) {
+            throw new IllegalStateException(
+                    "Falta JWT_SECRET (al menos 32 caracteres) en ms-usuarios/.env o en las variables de entorno.");
+        }
         this.clave = Keys.hmacShaKeyFor(secreto.getBytes(StandardCharsets.UTF_8));
         this.duracionMilisegundos = minutos * 60 * 1000;
     }
@@ -39,7 +43,7 @@ public class JwtService {
                 .claim("rol", usuario.getRol().name())
                 .issuedAt(ahora)
                 .expiration(vence)
-                .signWith(clave, Jwts.SIG.HS256)  // algoritmo fijo: ms-tienda sabe qué esperar
+                .signWith(clave, Jwts.SIG.HS256)  // algoritmo fijo: los otros microservicios saben qué esperar
                 .compact();
     }
 

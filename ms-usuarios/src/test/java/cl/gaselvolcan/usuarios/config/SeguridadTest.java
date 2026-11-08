@@ -33,7 +33,8 @@ import cl.gaselvolcan.usuarios.service.UsuarioService;
 
 // Pruebas de SeguridadConfig con tokens de verdad: sin token → 401,
 // rol equivocado → 403, rol correcto → 200. Los servicios son falsos (sin MySQL).
-@WebMvcTest(controllers = { UsuarioController.class, AuthController.class })
+@WebMvcTest(controllers = { UsuarioController.class, AuthController.class },
+        properties = "jwt.secret=clave-solo-para-las-pruebas-de-seguridad-2026")
 @Import({ SeguridadConfig.class, JwtService.class })
 class SeguridadTest {
 
