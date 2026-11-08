@@ -15,7 +15,8 @@ import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
 
 // Genera, verifica y lee los tokens JWT.
-// El token lleva: sub = correo, rol = rol del usuario, exp = cuándo vence.
+// El token lleva: sub = correo, id = id de la cuenta, rol = rol del usuario, exp = cuándo vence.
+// El id lo usan ms-pedidos (boletas del cliente o del repartidor) sin preguntarle a ms-usuarios.
 @Service
 public class JwtService {
 
@@ -40,6 +41,7 @@ public class JwtService {
 
         return Jwts.builder()
                 .subject(usuario.getCorreo())
+                .claim("id", usuario.getId())
                 .claim("rol", usuario.getRol().name())
                 .issuedAt(ahora)
                 .expiration(vence)
