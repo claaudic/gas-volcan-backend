@@ -3,7 +3,10 @@ package cl.gaselvolcan.usuarios.service;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -20,6 +23,7 @@ import cl.gaselvolcan.usuarios.dto.LoginSolicitud;
 import cl.gaselvolcan.usuarios.dto.RegistroSolicitud;
 import cl.gaselvolcan.usuarios.dto.UsuarioSolicitud;
 import cl.gaselvolcan.usuarios.exception.CredencialesInvalidasException;
+import cl.gaselvolcan.usuarios.exception.SolicitudInvalidaException;
 import cl.gaselvolcan.usuarios.model.Rol;
 import cl.gaselvolcan.usuarios.model.Usuario;
 import cl.gaselvolcan.usuarios.repository.UsuarioRepository;
@@ -118,5 +122,15 @@ class AuthServiceTest {
         ArgumentCaptor<UsuarioSolicitud> enviado = ArgumentCaptor.forClass(UsuarioSolicitud.class);
         verify(usuarios).crear(enviado.capture());
         assertEquals(Rol.CLIENTE, enviado.getValue().rol());
+    }
+
+    @Test
+    void elRegistroPublicoNoAceptaCorreosDelEquipo() {
+        RegistroSolicitud datos = new RegistroSolicitud("Ana", "Soto", " Ana@GasElVolcan.cl ", "Ana1234", null, null, null);
+
+        SolicitudInvalidaException error = assertThrows(SolicitudInvalidaException.class, () -> auth.registrar(datos));
+
+        assertTrue(error.getMessage().startsWith("Las cuentas del equipo las crea el administrador."));
+        verify(usuarios, never()).crear(any());
     }
 }

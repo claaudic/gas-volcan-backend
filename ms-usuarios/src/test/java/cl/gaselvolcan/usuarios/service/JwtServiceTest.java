@@ -2,6 +2,7 @@ package cl.gaselvolcan.usuarios.service;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import org.junit.jupiter.api.Test;
@@ -18,6 +19,12 @@ class JwtServiceTest {
 
     private final JwtService jwt = new JwtService(SECRETO, 30);
     private final Usuario camila = new Usuario("Camila", "Rojas", "camila@gmail.com", "x", Rol.CLIENTE);
+
+    @Test
+    void sinClaveOConClaveCortaNoArranca() {
+        assertThrows(IllegalStateException.class, () -> new JwtService("", 30));
+        assertThrows(IllegalStateException.class, () -> new JwtService("muy-corta", 30));
+    }
 
     @Test
     void elTokenLlevaCorreoYRol() {

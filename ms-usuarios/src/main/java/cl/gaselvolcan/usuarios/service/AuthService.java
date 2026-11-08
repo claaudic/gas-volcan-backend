@@ -9,6 +9,7 @@ import cl.gaselvolcan.usuarios.dto.LoginSolicitud;
 import cl.gaselvolcan.usuarios.dto.RegistroSolicitud;
 import cl.gaselvolcan.usuarios.dto.UsuarioRespuesta;
 import cl.gaselvolcan.usuarios.exception.CredencialesInvalidasException;
+import cl.gaselvolcan.usuarios.exception.SolicitudInvalidaException;
 import cl.gaselvolcan.usuarios.model.Usuario;
 import cl.gaselvolcan.usuarios.repository.UsuarioRepository;
 import io.jsonwebtoken.Claims;
@@ -17,6 +18,8 @@ import io.jsonwebtoken.JwtException;
 // Login, renovación del token y registro público
 @Service
 public class AuthService {
+
+    private static final String DOMINIO_EQUIPO = "@gaselvolcan.cl";
 
     private static final String CREDENCIALES_MALAS = "Correo o contraseña incorrectos.";
 
@@ -81,8 +84,14 @@ public class AuthService {
         return respuestaCon(usuario);
     }
 
-    // Registro público: el rol siempre es CLIENTE, venga lo que venga
+    // Registro público: el rol siempre es CLIENTE, venga lo que venga.
+    // Las cuentas @gaselvolcan.cl son del equipo y solo las crea el administrador
+    // (React también lo avisa, pero aquí se repite porque la API se puede llamar directo).
     public UsuarioRespuesta registrar(RegistroSolicitud datos) {
+        if (datos.correo().trim().toLowerCase().endsWith(DOMINIO_EQUIPO)) {
+            throw new SolicitudInvalidaException(
+                    "Las cuentas del equipo las crea el administrador. Si trabajas en Gas El Volcán, pide tu acceso.");
+        }
         return usuarios.crear(datos.comoCliente());
     }
 

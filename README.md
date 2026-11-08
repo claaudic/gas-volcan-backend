@@ -131,10 +131,10 @@ Cuentas de demostración (se cargan solas la primera vez):
 
 ### Clave del JWT
 
-Los tokens se firman con la variable de entorno `JWT_SECRET` (al menos 32 caracteres, la misma en los dos microservicios). Si no está definida, se usa una clave solo para desarrollo local.
+Los tokens se firman con `JWT_SECRET` (al menos 32 caracteres, la misma en los tres microservicios). No está escrita en el código: va en `ms-usuarios/.env` (ver `.env.example`) o como variable de entorno. Si falta, ms-usuarios no arranca y lo avisa. Para generar una:
 
 ```bash
-export JWT_SECRET="una-clave-larga-de-al-menos-32-caracteres"
+openssl rand -base64 48
 ```
 
 ### CORS
