@@ -114,6 +114,25 @@ class RutasGatewayTest {
     }
 
     @Test
+    void laCompraPuedeEnviarIdempotencyKeyDesdeElNavegador() {
+        gateway.options().uri("/api/v1/boletas")
+                .header(HttpHeaders.ORIGIN, REACT)
+                .header(HttpHeaders.ACCESS_CONTROL_REQUEST_METHOD, "POST")
+                .header(HttpHeaders.ACCESS_CONTROL_REQUEST_HEADERS, "content-type,idempotency-key")
+                .exchange()
+                .expectStatus().isOk()
+                .expectHeader().value(HttpHeaders.ACCESS_CONTROL_ALLOW_HEADERS,
+                        valor -> org.junit.jupiter.api.Assertions.assertTrue(valor.toLowerCase().contains("idempotency-key")));
+    }
+
+    @Test
+    void elGatewayDiceSiEstaVivo() {
+        gateway.get().uri("/actuator/health").exchange()
+                .expectStatus().isOk()
+                .expectBody().jsonPath("$.status").isEqualTo("UP");
+    }
+
+    @Test
     void otraPaginaNoPuedeLlamarAlGateway() {
         gateway.options().uri("/api/v1/auth/login")
                 .header(HttpHeaders.ORIGIN, "http://pagina-extrana.com")

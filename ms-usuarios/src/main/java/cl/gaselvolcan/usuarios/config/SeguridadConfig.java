@@ -45,6 +45,8 @@ public class SeguridadConfig {
             .authorizeHttpRequests(rutas -> rutas
                 .requestMatchers(HttpMethod.POST, "/api/v1/auth/**").permitAll()
                 .requestMatchers("/error").permitAll()
+                // Para saber si el servicio está vivo (Docker, despliegue): sin datos internos
+                .requestMatchers(HttpMethod.GET, "/actuator/health").permitAll()
                 .requestMatchers(HttpMethod.GET, "/api/v1/usuarios/repartidores")
                     .hasAnyRole("ADMINISTRADOR", "DESPACHADORA")
                 // Como en la EP2: solo el cliente puede eliminar su propia cuenta
