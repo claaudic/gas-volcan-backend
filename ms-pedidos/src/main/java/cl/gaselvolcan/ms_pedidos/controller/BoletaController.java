@@ -1,5 +1,7 @@
 package cl.gaselvolcan.ms_pedidos.controller;
 
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
 import java.util.Comparator;
 import java.util.List;
 import java.util.UUID;
@@ -42,15 +44,18 @@ public class BoletaController {
         this.servicio = servicio; this.compras = compras;
     }
 
+    @Operation(summary = "Listar boletas visibles para el usuario")
     @GetMapping
     public List<BoletaRespuesta> listar() { return servicio.listar(); }
 
+    @Operation(summary = "Consultar boleta por ID")
     @GetMapping("/{id}")
     public BoletaRespuesta buscar(@PathVariable Long id) { return servicio.buscarPorId(id); }
 
+    @Operation(summary = "Comprar con descuento de stock idempotente")
     @PostMapping
     public ResponseEntity<BoletaRespuesta> crear(@RequestHeader("Idempotency-Key") UUID clave,
-            @AuthenticationPrincipal UsuarioToken usuario,
+            @Parameter(hidden = true) @AuthenticationPrincipal UsuarioToken usuario,
             @RequestBody BoletaSolicitud datos) {
         Long clienteId = usuario == null ? null : datos.clienteId();
         if (usuario != null && "CLIENTE".equals(usuario.rol())) {
@@ -70,16 +75,19 @@ public class BoletaController {
         return ResponseEntity.status(HttpStatus.CREATED).body(compras.crear(clave, datos));
     }
 
+    @Operation(summary = "Consultar estado durable del stock")
     @GetMapping("/{id}/stock")
     public EstadoStock estadoStock(@PathVariable Long id) {
         return compras.estadoStock(id);
     }
 
+    @Operation(summary = "Reemplazar boleta historica pendiente")
     @PutMapping("/{id}")
     public BoletaRespuesta actualizar(@PathVariable Long id, @Valid @RequestBody BoletaSolicitud datos) {
         return servicio.actualizar(id, datos);
     }
 
+    @Operation(summary = "Cambiar estado comercial o cancelar boleta")
     @PutMapping("/{id}/estado")
     public BoletaRespuesta actualizarEstado(@PathVariable Long id, @Valid @RequestBody EstadoBoletaSolicitud datos) {
         return servicio.actualizarEstado(id, datos.estado());
