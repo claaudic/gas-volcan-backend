@@ -8,6 +8,11 @@ import static org.springframework.security.test.web.servlet.setup.SecurityMockMv
 import java.math.BigDecimal;
 import java.time.*;
 import java.util.*;
+import java.util.stream.Stream;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
+import static org.junit.jupiter.params.provider.Arguments.arguments;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.*;
 import cl.gaselvolcan.ms_pedidos.client.*;
@@ -144,6 +149,49 @@ class CompraIntegrationTest {
         mvc.perform(post("/api/v1/boletas").with(cliente(null)).header("Idempotency-Key", UUID.randomUUID())
                 .contentType(MediaType.APPLICATION_JSON).content(cuerpo())).andExpect(status().isForbidden());
         assertEquals(0, descuentos.get());
+    }
+
+    static Stream<Arguments> comprasInvalidas() {
+        return Stream.of(
+                arguments(false, "nombreInvitado", null, "El nombre del invitado es obligatorio."),
+                arguments(false, "nombreInvitado", " ", "El nombre del invitado es obligatorio."),
+                arguments(false, "nombreInvitado", "x".repeat(151), "El nombre del invitado no puede superar 150 caracteres."),
+                arguments(false, "correoInvitado", null, "El correo del invitado es obligatorio."),
+                arguments(false, "correoInvitado", " ", "El correo del invitado es obligatorio."),
+                arguments(false, "correoInvitado", "correo-invalido", "El correo del invitado no es válido."),
+                arguments(false, "telefonoInvitado", null, "El teléfono del invitado es obligatorio."),
+                arguments(false, "telefonoInvitado", " ", "El teléfono del invitado es obligatorio."),
+                arguments(false, "telefonoInvitado", "telefono-invalido", "El teléfono del invitado no es válido."),
+                arguments(false, "direccion", " ", "La dirección es obligatoria."),
+                arguments(false, "direccion", null, "La dirección es obligatoria."),
+                arguments(true, "direccion", " ", "La dirección es obligatoria."),
+                arguments(true, "direccion", null, "La dirección es obligatoria."),
+                arguments(true, "comuna", " ", "La comuna es obligatoria."),
+                arguments(true, "fecha", null, "La fecha es obligatoria."),
+                arguments(true, "detalles", List.of(), "La compra debe incluir al menos un detalle."),
+                arguments(true, "correoInvitado", "correo-invalido", "El correo del invitado no es válido."));
+    }
+
+    @ParameterizedTest
+    @MethodSource("comprasInvalidas")
+    void compraInvalidaInformaCampoSinDescontarStock(boolean autenticado, String campo, Object valor, String mensaje) throws Exception {
+        var json = tools.jackson.databind.json.JsonMapper.builder().build();
+        Map<?, ?> original = json.readValue(cuerpo(), Map.class);
+        var contenido = new LinkedHashMap<String, Object>();
+        original.forEach((clave, dato) -> contenido.put((String) clave, dato));
+        if (!autenticado) {
+            contenido.put("nombreInvitado", "Invitado sintetico");
+            contenido.put("correoInvitado", "invitado@example.test");
+            contenido.put("telefonoInvitado", "123456789");
+        }
+        contenido.put(campo, valor);
+        var peticion = post("/api/v1/boletas").header("Idempotency-Key", UUID.randomUUID())
+                .contentType(MediaType.APPLICATION_JSON).content(json.writeValueAsString(contenido));
+        if (autenticado) peticion.with(cliente(10L));
+        mvc.perform(peticion).andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.estado").value(400)).andExpect(jsonPath("$.mensaje").value(mensaje));
+        assertEquals(0, descuentos.get()); assertEquals(0, boletas.count()); assertEquals(0, operaciones.count());
+        verifyNoInteractions(stock, catalogo);
     }
 
     @Test void invitadoSinContactoNoDescuentaStock() throws Exception {
