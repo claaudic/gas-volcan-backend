@@ -127,5 +127,19 @@ services:
       start_period: 30s
       retries: 12
 
+  # Tienda React servida por nginx (Dockerfile y nginx.conf en tienda-react).
+  # nginx pasa /api al Gateway, así que la página no necesita saber la IP.
+  # Por defecto busca tienda-react al lado de esta carpeta (así se clona en la EC2).
+  frontend:
+    build:
+      context: ${FRONTEND_CARPETA:-../tienda-react}
+    container_name: volcan-frontend
+    restart: unless-stopped
+    ports:
+      - "${FRONTEND_PUERTO:-80}:80"
+    depends_on:
+      gateway:
+        condition: service_healthy
+
 volumes:
   volcan-datos:
