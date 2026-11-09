@@ -36,6 +36,9 @@ public class SeguridadConfig {
             // Las reglas se leen de arriba hacia abajo: gana la primera que calza
             .authorizeHttpRequests(rutas -> rutas
                 .requestMatchers("/error").permitAll()
+                // Documentacion publica; las reglas JWT de negocio se conservan.
+                .requestMatchers(HttpMethod.GET, "/v3/api-docs", "/v3/api-docs/**", "/v3/api-docs.yaml",
+                        "/swagger-ui.html", "/swagger-ui/**").permitAll()
                 // Para saber si el servicio está vivo (Docker, despliegue): sin datos internos
                 .requestMatchers(HttpMethod.GET, "/actuator/health").permitAll()
                 // Comprar: también el visitante sin cuenta (ERS, RF-08). Si viene con

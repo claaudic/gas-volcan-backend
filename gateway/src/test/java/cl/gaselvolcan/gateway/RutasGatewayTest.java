@@ -149,15 +149,85 @@ class RutasGatewayTest {
                 .expectHeader().valuesMatch(HttpHeaders.ACCESS_CONTROL_ALLOW_ORIGIN, REACT);
     }
 
+    @Test
+    void documentacionDeLosTresServiciosSeReenviaSinPublicarStockInterno() {
+        for (String servicio : java.util.List.of("usuarios", "catalogo", "pedidos")) {
+            gateway.get().uri("/openapi/" + servicio).exchange().expectStatus().isOk()
+                .expectBody().jsonPath("$.servicio").isEqualTo(servicio)
+                .jsonPath("$.ruta").isEqualTo("/v3/api-docs");
+        }
+        gateway.get().uri("/internal/v1/stock/descuentos/00000000-0000-0000-0000-000000000001")
+            .exchange().expectStatus().isNotFound();
+        gateway.get().uri("/openapi/catalogo/stock-interno").exchange().expectStatus().isNotFound();
+        gateway.post().uri("/openapi/pedidos").exchange().expectStatus().isNotFound();
+    }
+
+    @Test
+    void swaggerEnElMismoOrigenConservaHostYAuthorization() {
+        String origenSwagger = "http://localhost:" + puerto;
+        for (String ruta : java.util.List.of("/api/v1/auth/registro", "/api/v1/auth/login")) {
+            gateway.post().uri(ruta).header(HttpHeaders.ORIGIN, origenSwagger)
+                .header(HttpHeaders.CONTENT_TYPE, "application/json").bodyValue("{}")
+                .exchange().expectStatus().isOk().expectBody()
+                .jsonPath("$.host").isEqualTo("localhost:" + puerto)
+                .jsonPath("$.origin").isEqualTo(origenSwagger);
+        }
+        gateway.get().uri("/api/v1/usuarios/yo").header(HttpHeaders.ORIGIN, origenSwagger)
+            .header(HttpHeaders.AUTHORIZATION, "Bearer token-sintetico")
+            .exchange().expectStatus().isOk().expectBody()
+            .jsonPath("$.host").isEqualTo("localhost:" + puerto)
+            .jsonPath("$.auth").isEqualTo("Bearer token-sintetico");
+    }
+
+    @Test
+    void unOrigenAjenoSigueRechazadoEnRegistro() {
+        gateway.post().uri("/api/v1/auth/registro").header(HttpHeaders.ORIGIN, "http://origen-no-autorizado.test")
+            .header(HttpHeaders.CONTENT_TYPE, "application/json").bodyValue("{}")
+            .exchange().expectStatus().isForbidden();
+    }
+
+    @Test
+    void uiCentralOfreceLasTresEspecificaciones() {
+        gateway.get().uri("/swagger-ui.html").exchange().expectStatus().is3xxRedirection();
+        gateway.get().uri("/webjars/swagger-ui/index.html").exchange().expectStatus().isOk();
+        gateway.get().uri("/v3/api-docs/swagger-config").exchange().expectStatus().isOk()
+            .expectBody().jsonPath("$.urls.length()").isEqualTo(3)
+            .jsonPath("$.urls[?(@.name == 'usuarios')].url").isEqualTo("/openapi/usuarios")
+            .jsonPath("$.urls[?(@.name == 'catalogo')].url").isEqualTo("/openapi/catalogo")
+            .jsonPath("$.urls[?(@.name == 'pedidos')].url").isEqualTo("/openapi/pedidos");
+    }
+
     // --- Servidores de mentira ---
 
     private static HttpServer servidorDePrueba(String nombre) {
         try {
             HttpServer servidor = HttpServer.create(new InetSocketAddress("localhost", 0), 0);
             servidor.createContext("/", intercambio -> {
+                String host = intercambio.getRequestHeaders().getFirst(HttpHeaders.HOST);
+                String origin = intercambio.getRequestHeaders().getFirst(HttpHeaders.ORIGIN);
+                if (intercambio.getRequestURI().getPath().startsWith("/api/")) {
+                    // Reproducir la comprobacion CORS de Spring en el upstream, no solo en Gateway.
+                    var headers = new HttpHeaders();
+                    intercambio.getRequestHeaders().forEach(headers::put);
+                    var request = org.springframework.mock.http.server.reactive.MockServerHttpRequest
+                            .method(org.springframework.http.HttpMethod.valueOf(intercambio.getRequestMethod()),
+                                    java.net.URI.create("http://" + host + intercambio.getRequestURI()))
+                            .headers(headers).build();
+                    var exchange = org.springframework.mock.web.server.MockServerWebExchange.from(request);
+                    var cors = new org.springframework.web.cors.CorsConfiguration();
+                    cors.setAllowedOrigins(java.util.List.of(REACT));
+                    cors.setAllowedMethods(java.util.List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
+                    cors.setAllowedHeaders(java.util.List.of("Authorization", "Content-Type", "Idempotency-Key"));
+                    if (!new org.springframework.web.cors.reactive.DefaultCorsProcessor().process(cors, exchange)) {
+                        byte[] error = "Invalid CORS request".getBytes(StandardCharsets.UTF_8);
+                        intercambio.sendResponseHeaders(403, error.length);
+                        intercambio.getResponseBody().write(error); intercambio.close(); return;
+                    }
+                }
                 String auth = intercambio.getRequestHeaders().getFirst(HttpHeaders.AUTHORIZATION);
                 String json = "{\"servicio\":\"" + nombre + "\",\"ruta\":\"" + intercambio.getRequestURI().getPath()
-                        + "\",\"auth\":\"" + (auth == null ? "" : auth) + "\"}";
+                        + "\",\"auth\":\"" + (auth == null ? "" : auth)
+                        + "\",\"host\":\"" + host + "\",\"origin\":\"" + (origin == null ? "" : origin) + "\"}";
                 byte[] cuerpo = json.getBytes(StandardCharsets.UTF_8);
 
                 intercambio.getResponseHeaders().add("Content-Type", "application/json");

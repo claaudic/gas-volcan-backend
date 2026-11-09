@@ -45,6 +45,9 @@ public class SeguridadConfig {
             .authorizeHttpRequests(rutas -> rutas
                 .requestMatchers(HttpMethod.POST, "/api/v1/auth/**").permitAll()
                 .requestMatchers("/error").permitAll()
+                // Documentacion publica; las reglas JWT de negocio se conservan.
+                .requestMatchers(HttpMethod.GET, "/v3/api-docs", "/v3/api-docs/**", "/v3/api-docs.yaml",
+                        "/swagger-ui.html", "/swagger-ui/**").permitAll()
                 // Para saber si el servicio está vivo (Docker, despliegue): sin datos internos
                 .requestMatchers(HttpMethod.GET, "/actuator/health").permitAll()
                 .requestMatchers(HttpMethod.GET, "/api/v1/usuarios/repartidores")
