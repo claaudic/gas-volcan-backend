@@ -47,6 +47,8 @@ class SeguridadTest {
 
     @MockitoBean
     private BoletaService boletas;
+    @MockitoBean
+    private cl.gaselvolcan.ms_pedidos.service.CompraService compras;
 
     @AfterEach
     void limpiar() {
@@ -73,13 +75,13 @@ class SeguridadTest {
 
     @Test
     void unVisitanteSinCuentaPuedeComprar() throws Exception {
-        mvc.perform(post(BOLETAS).contentType(MediaType.APPLICATION_JSON).content("{}"))
+        mvc.perform(post(BOLETAS).header("Idempotency-Key", java.util.UUID.randomUUID()).contentType(MediaType.APPLICATION_JSON).content("{}"))
                 .andExpect(status().isBadRequest());
     }
 
     @Test
     void conUnTokenVencidoNoSeCompraComoInvitadoSinAvisar() throws Exception {
-        mvc.perform(post(BOLETAS).header(HttpHeaders.AUTHORIZATION, token("CLIENTE", -1))
+        mvc.perform(post(BOLETAS).header("Idempotency-Key", java.util.UUID.randomUUID()).header(HttpHeaders.AUTHORIZATION, token("CLIENTE", -1))
                         .contentType(MediaType.APPLICATION_JSON).content("{}"))
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.mensaje").value("El token no es válido o ya venció. Inicia sesión de nuevo."));
@@ -116,15 +118,43 @@ class SeguridadTest {
         }
     }
 
+    @Test
+    void endpointEstadoConservaLosPermisosJwt() throws Exception {
+        String ruta = BOLETAS + "/1/estado";
+        mvc.perform(put(ruta).contentType(MediaType.APPLICATION_JSON).content("{\"estado\":\"EN_CAMINO\"}"))
+                .andExpect(status().isUnauthorized());
+        mvc.perform(put(ruta).header(HttpHeaders.AUTHORIZATION, token("CLIENTE"))
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"estado\":\"EN_CAMINO\"}"))
+                .andExpect(status().isForbidden());
+        for (String rol : new String[] {"REPARTIDOR", "DESPACHADORA", "ADMINISTRADOR"}) {
+            mvc.perform(put(ruta).header(HttpHeaders.AUTHORIZATION, token(rol))
+                            .contentType(MediaType.APPLICATION_JSON).content("{\"estado\":\"EN_CAMINO\"}"))
+                    .andExpect(status().isOk());
+        }
+    }
+
     // --- Eliminar ---
 
     @Test
-    void soloElAdministradorEliminaBoletas() throws Exception {
+    void ningunRolEliminaBoletas() throws Exception {
+        mvc.perform(delete(BOLETAS + "/1"))
+                .andExpect(status().isUnauthorized());
         mvc.perform(delete(BOLETAS + "/1").header(HttpHeaders.AUTHORIZATION, token("DESPACHADORA")))
                 .andExpect(status().isForbidden());
 
         mvc.perform(delete(BOLETAS + "/1").header(HttpHeaders.AUTHORIZATION, token("ADMINISTRADOR")))
-                .andExpect(status().isNoContent());
+                .andExpect(status().isMethodNotAllowed());
+    }
+
+    @Test
+    void tokenInternoNoAutenticaComoUsuarioNiAdministrador() throws Exception {
+        var generador = new cl.gaselvolcan.ms_pedidos.client.TokenServicioCatalogo(
+                "clave-interna-sintetica-exclusiva-de-pruebas-123456", CLAVE);
+        String encabezado = "Bearer " + generador.generar();
+        mvc.perform(get(BOLETAS).header(HttpHeaders.AUTHORIZATION, encabezado))
+                .andExpect(status().isUnauthorized());
+        mvc.perform(delete(BOLETAS + "/1").header(HttpHeaders.AUTHORIZATION, encabezado))
+                .andExpect(status().isUnauthorized());
     }
 
     // --- Quién es el usuario ---

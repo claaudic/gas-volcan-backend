@@ -42,7 +42,9 @@ class CatalogoIntegrationTest {
         servidor = MockRestServiceServer.bindTo(builder).build();
         cliente = new CatalogoClient(builder.build());
         repositorio = mock(BoletaRepository.class);
-        servicio = new BoletaService(repositorio, factory.getValidator(), cliente);
+        var manager = mock(org.springframework.transaction.PlatformTransactionManager.class);
+        when(manager.getTransaction(any())).thenReturn(new org.springframework.transaction.support.SimpleTransactionStatus());
+        servicio = new BoletaService(repositorio, factory.getValidator(), cliente, manager);
         existente = new Boleta(10L, "Original", "Comuna", "PENDIENTE", null,
                 LocalDateTime.of(2026, 1, 1, 12, 0), BigDecimal.TEN);
         existente.setId(1L);
@@ -87,7 +89,7 @@ class CatalogoIntegrationTest {
         esperarStock(1, 2, disponibilidad(1, 2, 10, true));
         esperarProducto(2, producto(2, true, "3.10", "null"));
         esperarStock(2, 3, disponibilidad(2, 3, 10, true));
-        var respuesta = servicio.crear(datos(new DetalleBoletaSolicitud(1L, 2), new DetalleBoletaSolicitud(2L, 3)));
+        var respuesta = servicio.cotizar(datos(new DetalleBoletaSolicitud(1L, 2), new DetalleBoletaSolicitud(2L, 3)));
         assertEquals(new BigDecimal("40.30"), respuesta.total());
         assertEquals(new BigDecimal("15.50"), respuesta.detalles().getFirst().precio());
         assertEquals(new BigDecimal("3.10"), respuesta.detalles().get(1).precio());
@@ -101,7 +103,7 @@ class CatalogoIntegrationTest {
     }
     @Test void productoInexistente404NoGuarda() {
         servidor.expect(requestTo(BASE + 1)).andRespond(withResourceNotFound());
-        assertThrows(RecursoNoEncontradoException.class, () -> servicio.crear(datos(new DetalleBoletaSolicitud(1L, 1))));
+        assertThrows(RecursoNoEncontradoException.class, () -> servicio.cotizar(datos(new DetalleBoletaSolicitud(1L, 1))));
         intacta();
     }
     @Test void productoInactivoNoConsultaDisponibilidadNiGuarda() {
@@ -118,19 +120,19 @@ class CatalogoIntegrationTest {
     @Test void acumulaCantidadesRepetidasParaEvitarEludirStock() {
         esperarProducto(1, producto(1, true, "10", "null"));
         esperarStock(1, 4, disponibilidad(1, 4, 3, true));
-        assertThrows(SolicitudInvalidaException.class, () -> servicio.crear(datos(
+        assertThrows(SolicitudInvalidaException.class, () -> servicio.cotizar(datos(
                 new DetalleBoletaSolicitud(1L, 2), new DetalleBoletaSolicitud(1L, 2))));
         intacta();
     }
     @Test void repetidosUsanUnaSolaConsultaYElMismoPrecio() {
         esperarProducto(1, producto(1, true, "10", "null"));
         esperarStock(1, 4, disponibilidad(1, 4, 4, true));
-        var respuesta = servicio.crear(datos(new DetalleBoletaSolicitud(1L, 2), new DetalleBoletaSolicitud(1L, 2)));
+        var respuesta = servicio.cotizar(datos(new DetalleBoletaSolicitud(1L, 2), new DetalleBoletaSolicitud(1L, 2)));
         assertEquals(new BigDecimal("40.00"), respuesta.total());
         assertEquals(2, respuesta.detalles().size());
     }
     @Test void cantidadAcumuladaFueraDeRangoNoLlamaCatalogo() {
-        assertThrows(SolicitudInvalidaException.class, () -> servicio.crear(datos(
+        assertThrows(SolicitudInvalidaException.class, () -> servicio.cotizar(datos(
                 new DetalleBoletaSolicitud(1L, Integer.MAX_VALUE), new DetalleBoletaSolicitud(1L, 1))));
         intacta();
     }
@@ -158,14 +160,14 @@ class CatalogoIntegrationTest {
     }
     @Test void productoConOtroIdEsRespuestaInvalida() {
         esperarProducto(1, producto(2, true, "10", "null"));
-        assertThrows(RespuestaCatalogoInvalidaException.class, () -> servicio.crear(datos(new DetalleBoletaSolicitud(1L, 1))));
+        assertThrows(RespuestaCatalogoInvalidaException.class, () -> servicio.cotizar(datos(new DetalleBoletaSolicitud(1L, 1))));
         intacta();
     }
     @Test void precioAusenteNegativoOImprecisoNoSePersiste() {
         for (String precio : List.of("null", "-1", "1.001", "100000000000000000")) {
             servidor.reset();
             esperarProducto(1, producto(1, true, precio, "null"));
-            assertThrows(RespuestaCatalogoInvalidaException.class, () -> servicio.crear(datos(new DetalleBoletaSolicitud(1L, 1))));
+            assertThrows(RespuestaCatalogoInvalidaException.class, () -> servicio.cotizar(datos(new DetalleBoletaSolicitud(1L, 1))));
             servidor.verify();
         }
         intacta();
@@ -173,19 +175,19 @@ class CatalogoIntegrationTest {
     @Test void disponibilidadInconsistenteNoSePersiste() {
         esperarProducto(1, producto(1, true, "10", "null"));
         esperarStock(1, 3, disponibilidad(1, 3, 2, true).replace("false", "true"));
-        assertThrows(RespuestaCatalogoInvalidaException.class, () -> servicio.crear(datos(new DetalleBoletaSolicitud(1L, 3))));
+        assertThrows(RespuestaCatalogoInvalidaException.class, () -> servicio.cotizar(datos(new DetalleBoletaSolicitud(1L, 3))));
         intacta();
     }
     @Test void disponibilidadSinCampoDisponibleNoSeInterpretaComoStockInsuficiente() {
         esperarProducto(1, producto(1, true, "10", "null"));
         esperarStock(1, 1, "{\"productoId\":1,\"codigo\":\"P1\",\"cantidadSolicitada\":1,\"stock\":10,\"activo\":true}");
-        assertThrows(RespuestaCatalogoInvalidaException.class, () -> servicio.crear(datos(new DetalleBoletaSolicitud(1L, 1))));
+        assertThrows(RespuestaCatalogoInvalidaException.class, () -> servicio.cotizar(datos(new DetalleBoletaSolicitud(1L, 1))));
         intacta();
     }
     @Test void productoDesactivadoEntreConsultasNoSePersiste() {
         esperarProducto(1, producto(1, true, "10", "null"));
         esperarStock(1, 1, disponibilidad(1, 1, 10, false));
-        assertThrows(SolicitudInvalidaException.class, () -> servicio.crear(datos(new DetalleBoletaSolicitud(1L, 1))));
+        assertThrows(SolicitudInvalidaException.class, () -> servicio.cotizar(datos(new DetalleBoletaSolicitud(1L, 1))));
         intacta();
     }
     @Test void falloSegundoProductoNoGuardaDetallesParciales() {
@@ -196,11 +198,9 @@ class CatalogoIntegrationTest {
                 new DetalleBoletaSolicitud(1L, 1), new DetalleBoletaSolicitud(2L, 1))));
         intacta();
     }
-    @Test void consultarYEliminarBoletasNoRequiereCatalogo() {
+    @Test void consultarBoletasNoRequiereCatalogo() {
         when(repositorio.findAll()).thenReturn(List.of(existente));
         assertEquals(1, servicio.listar().size());
         servicio.buscarPorId(1L);
-        servicio.eliminar(1L);
-        verify(repositorio).delete(existente);
     }
 }

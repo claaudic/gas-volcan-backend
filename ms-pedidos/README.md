@@ -42,7 +42,7 @@ java -version
 
 MySQL debe estar funcionando, con la base `volcan_pedidos`, el usuario configurado
 y las tablas creadas. Para crear o reemplazar boletas tambien debe responder
-ms-catalogo; listar, consultar y eliminar boletas no requiere llamar a catalogo.
+ms-catalogo; listar y consultar boletas no requiere llamar a catalogo.
 
 Ejemplo de configuracion temporal en PowerShell, sin contrasenas en el comando.
 La solicitud interactiva debe recibir la credencial del entorno que corresponda;
@@ -129,8 +129,9 @@ Desde `ms-pedidos`, en PowerShell:
 ```
 
 En Linux/macOS: `bash ./mvnw test`.
-Las pruebas de persistencia arrancan Spring con H2 efimera en memoria y una
-transaccion con rollback por prueba; no necesitan MySQL, Docker, catalogo ni usuarios.
+Las pruebas de persistencia arrancan Spring con H2 efimera en memoria; algunas
+usan rollback y las de coordinacion realizan commits reales con limpieza entre
+casos. No necesitan MySQL, Docker, catalogo ni usuarios.
 `create-drop` se limita a H2 de pruebas. Se comprueban dos productos, repositorios,
 FK interna, precision monetaria y cascadas. H2 no sustituye la comprobacion de
 compatibilidad MySQL; esta tambien se realizo mediante la prueba real descrita abajo.
@@ -139,15 +140,59 @@ Datos sinteticos de pruebas: no son ventas ni precios del catalogo original.
 No se incluyen datos iniciales. En pruebas, todas las consultas a catalogo se simulan;
 MockRestServiceServer verifica rutas, parametros, JSON, estados y fallos de transporte.
 
+## Autenticacion interna hacia catalogo
+
+Configurar `INTERNAL_STOCK_JWT_SECRET` en el entorno o `.env`, compartida solo
+con catalogo, de al menos 32 bytes UTF-8 y distinta de `JWT_SECRET`.
+No tiene valor secreto por defecto; si falta o no cumple estas reglas el servicio
+no arranca. No usar las claves sinteticas de las pruebas en el despliegue.
+
+`TokenServicioCatalogo` emite JWT HS256 de un minuto, con emisor/sujeto
+`ms-pedidos`, audiencia `ms-catalogo` y scopes de stock. El bean separado
+`catalogoInternoRestClient` agrega Authorization solo al host/puerto/esquema
+configurados en `PEDIDOS_CATALOGO_URL` y a rutas `/internal/v1/stock/**`.
+El cliente de lectura existente permanece sin cambios. No se reenvia el token
+del comprador, no se usa rol ADMINISTRADOR ni se generan usuarios de servicio.
+
+Las compras ya utilizan los endpoints internos de descuento, consulta y compensacion.
+Usar HTTPS fuera del desarrollo local y coordinar la rotacion de la clave;
+nunca registrar Authorization ni guardar claves en Git. El contrato completo
+esta documentado en `../ms-catalogo/SEGURIDAD-INTERNA.md`.
+
+## Compras durables
+
+POST exige `Idempotency-Key` UUID estable. Solo confirma despues de acreditar el
+descuento; los resultados desconocidos y compensaciones se recuperan desde registros
+durables. Consulta el contrato, estados tecnicos, cancelacion y despliegue en
+[COMPRAS-DURABLES.md](COMPRAS-DURABLES.md).
+
 ## API de boletas
 
 | Metodo | Ruta | Respuesta exitosa |
 | --- | --- | --- |
 | GET | `/api/v1/boletas` | 200 con lista, incluso vacia |
 | GET | `/api/v1/boletas/{id}` | 200 con cabecera y detalles |
+| GET | `/api/v1/boletas/{id}/stock` | 200 con estado tecnico y restitucion acreditada |
 | POST | `/api/v1/boletas` | 201 con boleta creada |
 | PUT | `/api/v1/boletas/{id}` | 200 con boleta reemplazada |
-| DELETE | `/api/v1/boletas/{id}` | 204 sin cuerpo |
+| PUT | `/api/v1/boletas/{id}/estado` | 200 con el nuevo estado |
+| DELETE | `/api/v1/boletas/{id}` | Deshabilitado: 401/403/405 segun autenticacion y rol |
+
+### Conservacion y cancelacion
+
+La API no permite borrar fisicamente boletas ni sus detalles. Spring Security
+procesa primero la peticion, sin cambios en la configuracion JWT: DELETE devuelve
+401 sin autenticacion valida, 403 para roles sin permiso y 405 Method Not Allowed
+para ADMINISTRADOR autenticado, porque el controlador no ofrece ese metodo.
+El 405 conserva la cabecera Allow generada por Spring MVC. Ninguno de estos
+intentos elimina boletas ni detalles, incluso si el ID no existe.
+
+Para cancelar se utiliza `PUT /api/v1/boletas/{id}/estado` con
+`{"estado":"CANCELADO"}`, respetando los permisos y la transicion
+PENDIENTE -> CANCELADO. La boleta y sus detalles permanecen almacenados.
+Con descuento registrado se programa compensacion idempotente durable; CANCELADO
+no implica restitucion completada. Consultar el endpoint `/stock`. Las boletas
+historicas sin registro de descuento nunca se restituyen automaticamente.
 
 Los errores devuelven `{ "estado": 400, "mensaje": "..." }`. Datos invalidos,
 IDs no positivos, producto inactivo, stock insuficiente y total fuera de precision
@@ -155,7 +200,7 @@ responden 400; boletas o productos inexistentes, 404. Catalogo no disponible o
 tiempo de espera agotado responde 503; respuesta remota inesperada o incompleta, 502. JSON invalido responde 400; metodo no admitido 405; contenido no JSON 415.
 Los errores inesperados responden 500 sin divulgar detalles internos.
 
-POST/PUT requieren clienteId positivo, direccion, comuna, estado y fecha,
+POST/PUT requieren clienteId positivo, direccion, comuna y fecha,
 ademas de una lista no vacia de detalles validados. repartidorId es opcional.
 Cada linea requiere productoId positivo y cantidad entera positiva. El precio se
 obtiene exclusivamente del catalogo; cualquier atributo `precio` enviado se ignora. Se admiten dos o mas productos y tambien una
@@ -168,7 +213,7 @@ Solicitud sintetica de ejemplo (no es una venta ni utiliza precios reales):
   "clienteId": 10,
   "direccion": "Direccion de prueba 123",
   "comuna": "Comuna de prueba",
-  "estado": "ESTADO_PRUEBA",
+  "estado": "PENDIENTE",
   "repartidorId": null,
   "fecha": "2026-01-01T12:00:00",
   "detalles": [
@@ -183,7 +228,7 @@ ejemplo son sinteticos y no se garantiza que existan. `total` no es un campo del
 si el JSON incluye ese atributo, se ignora expresamente. No se confia en el
 total enviado por el cliente. El DTO de respuesta si incluye el total calculado.
 
-POST y PUT consultan `GET /api/v1/productos/{id}` y
+La cotizacion inicial del POST y el PUT legado consultan `GET /api/v1/productos/{id}` y
 `GET /api/v1/productos/{id}/disponibilidad?cantidad=X`. Todas las lineas se
 validan antes de alterar la entidad. Las cantidades de IDs repetidos se suman
 para consultar disponibilidad y cada producto se consulta una vez por operacion.
@@ -193,19 +238,23 @@ Politica de precio vigente: se utiliza `precioOferta` si no es nulo; en otro
 caso, `precioResidencial`. No se calculan descuentos adicionales. El contrato
 actual no identifica un tipo de cliente para seleccionar tarifa comercial.
 El precio aplicado queda como historico en cada detalle. Un PUT completo vuelve
-a validar y valorar todas las lineas con los precios actuales. GET y DELETE no
+a validar y valorar todas las lineas con los precios actuales. GET no
 consultan catalogo; el arranque tampoco necesita conectarse a ese servicio.
-No hay acceso a volcan_catalogo ni relaciones JPA externas. No se reservan ni
-descuentan existencias, por lo que no se garantiza stock frente a ventas concurrentes.
+No hay acceso directo a volcan_catalogo ni relaciones JPA externas. Las compras
+descuentan existencias mediante el contrato interno atomico de catalogo.
 La consulta del producto y la de disponibilidad no constituyen una instantanea atomica.
 No se valida aun la existencia del cliente o repartidor.
-La fecha proviene de la solicitud; el estado sigue siendo texto obligatorio,
-sin un conjunto cerrado de valores ni reglas de transicion.
+La fecha proviene de la solicitud. El estado inicial es PENDIENTE; se permiten
+PENDIENTE -> EN_CAMINO -> ENTREGADO y PENDIENTE -> CANCELADO.
+ENTREGADO y CANCELADO son estados finales. El PUT general solo admite
+boletas PENDIENTE y no permite cambiar el estado.
 
 PUT reemplaza toda la cabecera y todas las lineas, recalcula el total, conserva
 el ID de boleta y genera nuevos IDs de detalle. Las lineas anteriores se eliminan
-por orphanRemoval dentro de la transaccion. DELETE elimina boleta y detalles en
-cascada; las restricciones de anulacion se definiran cuando se acuerden las reglas.
+por orphanRemoval dentro de la transaccion. Este reemplazo solo se permite en
+boletas historicas PENDIENTE sin operacion de stock; las vinculadas no admiten
+PUT general. DELETE esta deshabilitado para
+conservar el historial; la cancelacion se realiza mediante el estado CANCELADO.
 Los DTO evitan serializar entidades y referencias circulares.
 
 Las pruebas de etapa 2 cubren servicio, validacion DTO, errores HTTP y CRUD

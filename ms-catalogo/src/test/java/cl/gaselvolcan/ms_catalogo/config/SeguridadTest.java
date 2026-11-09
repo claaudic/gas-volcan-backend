@@ -30,6 +30,7 @@ import io.jsonwebtoken.security.Keys;
 // la tienda es pública, y crear/editar/eliminar es solo del administrador.
 @WebMvcTest(controllers = { ProductoController.class, CategoriaController.class },
         properties = "jwt.secret=" + SeguridadTest.CLAVE)
+@org.springframework.test.context.TestPropertySource(properties = "internal.jwt.secret=clave-interna-sintetica-exclusiva-de-pruebas-123456")
 @Import(SeguridadConfig.class)
 class SeguridadTest {
 
