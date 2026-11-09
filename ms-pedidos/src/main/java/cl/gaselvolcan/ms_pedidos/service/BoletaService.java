@@ -46,6 +46,8 @@ public class BoletaService {
 
     @Transactional(readOnly = true)
     public List<BoletaRespuesta> listar() {
+        Long clienteId = clienteAutenticado();
+        if (clienteId != null) return repositorio.findByClienteId(clienteId).stream().map(BoletaRespuesta::desde).toList();
         Long repartidorId = repartidorAutenticado();
         if (repartidorId != null) {
             return repositorio.findByRepartidorId(repartidorId).stream().map(BoletaRespuesta::desde).toList();
@@ -91,6 +93,8 @@ public class BoletaService {
     }
 
     private void validarEdicion(Boleta boleta, BoletaSolicitud datos) {
+        verificarCliente(boleta);
+        if (clienteAutenticado() != null) throw new AccessDeniedException("El cliente no puede reemplazar boletas.");
         if (boleta.getOperacionStockId() != null) {
             throw new SolicitudInvalidaException("La boleta con descuento acreditado no admite edicion general; usa el endpoint de estado.");
         }
@@ -145,7 +149,22 @@ public class BoletaService {
         return usuario.id();
     }
 
+    private Long clienteAutenticado() {
+        var auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth == null || auth.getAuthorities().stream().noneMatch(a -> "ROLE_CLIENTE".equals(a.getAuthority()))) return null;
+        if (!(auth.getPrincipal() instanceof UsuarioToken usuario) || usuario.id() == null || usuario.id() <= 0)
+            throw new AccessDeniedException("Se requiere un token con ID valido.");
+        return usuario.id();
+    }
+
+    private void verificarCliente(Boleta boleta) {
+        Long cliente = clienteAutenticado();
+        if (cliente != null && !cliente.equals(boleta.getClienteId()))
+            throw new AccessDeniedException("La boleta pertenece a otro cliente.");
+    }
+
     private void verificarAsignacion(Boleta boleta, Long repartidorId) {
+        verificarCliente(boleta);
         if (repartidorId != null && !repartidorId.equals(boleta.getRepartidorId())) {
             throw new AccessDeniedException("La boleta no esta asignada al repartidor autenticado.");
         }
@@ -232,6 +251,9 @@ public class BoletaService {
 
     private void copiar(BoletaSolicitud datos, BigDecimal total, Map<Long, BigDecimal> precios, Boleta boleta) {
         boleta.setClienteId(datos.clienteId());
+        boleta.setNombreInvitado(datos.nombreInvitado());
+        boleta.setCorreoInvitado(datos.correoInvitado());
+        boleta.setTelefonoInvitado(datos.telefonoInvitado());
         boleta.setDireccion(datos.direccion().trim());
         boleta.setComuna(datos.comuna().trim());
         boleta.setRepartidorId(datos.repartidorId());

@@ -89,6 +89,69 @@ class CompraIntegrationTest {
              "detalles":[{"productoId":1,"cantidad":2},{"productoId":2,"cantidad":3}]}
             """; }
 
+    private org.springframework.test.web.servlet.request.RequestPostProcessor cliente(Long id) {
+        var usuario = new cl.gaselvolcan.ms_pedidos.config.UsuarioToken(id, "cliente@example.test", "CLIENTE");
+        return org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.authentication(
+                new org.springframework.security.authentication.UsernamePasswordAuthenticationToken(usuario, null,
+                        List.of(new org.springframework.security.core.authority.SimpleGrantedAuthority("ROLE_CLIENTE"))));
+    }
+
+    @Test void identidadDelTokenImpideSuplantacionYFiltraBoletas() throws Exception {
+        UUID clave = UUID.randomUUID();
+        mvc.perform(post("/api/v1/boletas").with(cliente(77L)).header("Idempotency-Key", clave)
+                .contentType(MediaType.APPLICATION_JSON).content(cuerpo()))
+                .andExpect(status().isCreated()).andExpect(jsonPath("$.clienteId").value(77));
+        long id = boletas.findAll().getFirst().getId();
+        mvc.perform(get("/api/v1/boletas").with(cliente(10L))).andExpect(status().isOk()).andExpect(jsonPath("$.length()").value(0));
+        mvc.perform(get("/api/v1/boletas").with(cliente(77L))).andExpect(status().isOk()).andExpect(jsonPath("$[0].clienteId").value(77));
+        for (String ruta : List.of("/api/v1/boletas/" + id, "/api/v1/boletas/" + id + "/stock"))
+            mvc.perform(get(ruta).with(cliente(10L))).andExpect(status().isForbidden());
+        mvc.perform(put("/api/v1/boletas/" + id).with(cliente(10L)).contentType(MediaType.APPLICATION_JSON).content(cuerpo()))
+                .andExpect(status().isForbidden());
+        mvc.perform(put("/api/v1/boletas/" + id + "/estado").with(cliente(10L)).contentType(MediaType.APPLICATION_JSON).content("{\"estado\":\"CANCELADO\"}"))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test void invitadoValidoPersisteContactoYReintentaSinDuplicar() throws Exception {
+        UUID clave = UUID.randomUUID();
+        String cuerpo = cuerpo().replace("\"clienteId\":10", "\"clienteId\":999,\"nombreInvitado\":\"Prueba Invitado\",\"correoInvitado\":\"invitado@example.test\",\"telefonoInvitado\":\"123456789\"");
+        for (int i = 0; i < 2; i++) mvc.perform(post("/api/v1/boletas").header("Idempotency-Key", clave)
+                .contentType(MediaType.APPLICATION_JSON).content(cuerpo)).andExpect(status().isCreated()).andExpect(jsonPath("$.clienteId").isEmpty());
+        var b = boletas.findAll().getFirst();
+        assertNull(b.getClienteId()); assertEquals("Prueba Invitado", b.getNombreInvitado());
+        assertEquals("invitado@example.test", b.getCorreoInvitado()); assertEquals("123456789", b.getTelefonoInvitado());
+        assertEquals(1, descuentos.get());
+        servicio.actualizarEstado(b.getId(), EstadoBoleta.CANCELADO); compras.recuperarPendientes();
+        assertEquals(1, compensaciones.get());
+    }
+
+    @Test void invitadoPendienteRecuperaContactoDesdeSolicitudDurable() {
+        var base = datos();
+        var invitado = new BoletaSolicitud(null, base.direccion(), base.comuna(), base.estado(), base.repartidorId(),
+                base.fecha(), base.detalles(), "Invitado prueba", "invitado@example.test", "123456789");
+        doThrow(new CatalogoNoDisponibleException("timeout")).when(stock).consultar(any());
+        UUID clave = UUID.randomUUID();
+        assertThrows(CatalogoNoDisponibleException.class, () -> compras.crear(clave, invitado));
+        doAnswer(c -> remoto.get(c.getArgument(0))).when(stock).consultar(any());
+        reiniciarCoordinador().recuperarPendientes();
+        assertEquals("CONFIRMADA", estado(clave));
+        var b = boletas.findAll().getFirst();
+        assertNull(b.getClienteId()); assertEquals(invitado.correoInvitado(), b.getCorreoInvitado());
+        assertEquals(invitado.nombreInvitado(), b.getNombreInvitado()); assertEquals(invitado.telefonoInvitado(), b.getTelefonoInvitado());
+    }
+
+    @Test void clienteSinIdEnTokenNoPuedeComprar() throws Exception {
+        mvc.perform(post("/api/v1/boletas").with(cliente(null)).header("Idempotency-Key", UUID.randomUUID())
+                .contentType(MediaType.APPLICATION_JSON).content(cuerpo())).andExpect(status().isForbidden());
+        assertEquals(0, descuentos.get());
+    }
+
+    @Test void invitadoSinContactoNoDescuentaStock() throws Exception {
+        mvc.perform(post("/api/v1/boletas").header("Idempotency-Key", UUID.randomUUID())
+                .contentType(MediaType.APPLICATION_JSON).content(cuerpo())).andExpect(status().isBadRequest());
+        assertEquals(0, operaciones.count()); assertEquals(0, descuentos.get());
+    }
+
     @Test void persisteSolicitudValidaMayorA255BytesSinTruncarla() {
         var solicitud = new BoletaSolicitud(10L, "Dirección de prueba ".repeat(12), "Comuna de prueba",
                 "PENDIENTE", 11L, datos().fecha(), datos().detalles());
@@ -123,7 +186,7 @@ class CompraIntegrationTest {
             sinTx(); return new StockInternoClient.Resultado(c.getArgument(0).toString(), "RECHAZADO", c.getArgument(1), 409, "insuficiente");
         }).when(stock).descontar(any(), any());
         UUID id = UUID.randomUUID();
-        mvc.perform(post("/api/v1/boletas").header("Idempotency-Key", id).contentType(MediaType.APPLICATION_JSON).content(cuerpo()))
+        mvc.perform(post("/api/v1/boletas").with(cliente(10L)).header("Idempotency-Key", id).contentType(MediaType.APPLICATION_JSON).content(cuerpo()))
                 .andExpect(status().isBadRequest());
         assertEquals("RECHAZADA", estado(id)); assertEquals(0, boletas.count());
         assertThrows(SolicitudInvalidaException.class, () -> compras.crear(id, datos()));
@@ -200,9 +263,9 @@ class CompraIntegrationTest {
     }
 
     @Test void httpExigeClaveEstableYReintentaSinDuplicar() throws Exception {
-        mvc.perform(post("/api/v1/boletas").contentType(MediaType.APPLICATION_JSON).content(cuerpo())).andExpect(status().isBadRequest());
+        mvc.perform(post("/api/v1/boletas").with(cliente(10L)).contentType(MediaType.APPLICATION_JSON).content(cuerpo())).andExpect(status().isBadRequest());
         UUID id = UUID.randomUUID();
-        for (int i = 0; i < 2; i++) mvc.perform(post("/api/v1/boletas").header("Idempotency-Key", id)
+        for (int i = 0; i < 2; i++) mvc.perform(post("/api/v1/boletas").with(cliente(10L)).header("Idempotency-Key", id)
                         .contentType(MediaType.APPLICATION_JSON).content(cuerpo()))
                 .andExpect(status().isCreated()).andExpect(jsonPath("$.total").value(40.00));
         assertEquals(1, boletas.count()); assertEquals(1, descuentos.get());

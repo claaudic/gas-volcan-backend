@@ -80,7 +80,7 @@ public class CompraService {
         catch (ArithmeticException e) { throw new SolicitudInvalidaException("Cantidad acumulada fuera de rango."); }
         return new BoletaSolicitud(datos.clienteId(), datos.direccion().trim(), datos.comuna().trim(), "PENDIENTE",
                 datos.repartidorId(), datos.fecha(), cantidades.entrySet().stream()
-                        .map(e -> new DetalleBoletaSolicitud(e.getKey(), e.getValue())).toList());
+                        .map(e -> new DetalleBoletaSolicitud(e.getKey(), e.getValue())).toList(), datos.nombreInvitado(), datos.correoInvitado(), datos.telefonoInvitado());
     }
 
     private record Trabajo(String estado, String solicitud, String cotizacion) {}
@@ -129,6 +129,9 @@ public class CompraService {
                 cambiar(id, dueno, "COTIZADA", o -> {
                     var b = new Boleta(precioFijo.clienteId(), precioFijo.direccion(), precioFijo.comuna(), "PENDIENTE",
                             precioFijo.repartidorId(), precioFijo.fecha(), precioFijo.total());
+                    b.setNombreInvitado(datos.nombreInvitado());
+                    b.setCorreoInvitado(datos.correoInvitado());
+                    b.setTelefonoInvitado(datos.telefonoInvitado());
                     b.setOperacionStockId(id);
                     precioFijo.detalles().forEach(d -> b.agregarDetalle(new DetalleBoleta(d.productoId(), d.cantidad(), d.precio())));
                     var guardada = boletas.saveAndFlush(b);

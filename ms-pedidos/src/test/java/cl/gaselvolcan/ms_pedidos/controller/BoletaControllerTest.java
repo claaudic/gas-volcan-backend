@@ -19,7 +19,7 @@ import cl.gaselvolcan.ms_pedidos.service.BoletaService;
 class BoletaControllerTest {
     private static final String RUTA = "/api/v1/boletas";
     private static final String DATOS = """
-            {"clienteId":10,"direccion":"Direccion 123","comuna":"Comuna","estado":"PENDIENTE",
+            {"nombreInvitado":"Invitado prueba","correoInvitado":"invitado@example.test","telefonoInvitado":"123456789","clienteId":10,"direccion":"Direccion 123","comuna":"Comuna","estado":"PENDIENTE",
              "repartidorId":null,"fecha":"2026-01-01T12:00:00",
              "detalles":[{"productoId":91001,"cantidad":2,"precio":19.99},
                          {"productoId":91002,"cantidad":3,"precio":3.10}]}
@@ -35,7 +35,7 @@ class BoletaControllerTest {
     @BeforeEach void preparar() {
         servicio = mock(BoletaService.class);
         compras = mock(cl.gaselvolcan.ms_pedidos.service.CompraService.class);
-        mvc = MockMvcBuilders.standaloneSetup(new BoletaController(servicio, compras))
+        mvc = MockMvcBuilders.standaloneSetup(new BoletaController(servicio, compras, jakarta.validation.Validation.buildDefaultValidatorFactory().getValidator()))
                 .setControllerAdvice(new ManejadorErrores()).build();
     }
     @Test void listar200() throws Exception {
@@ -56,7 +56,7 @@ class BoletaControllerTest {
         when(compras.crear(any(), any())).thenReturn(respuesta);
         mvc.perform(post(RUTA).header("Idempotency-Key", java.util.UUID.randomUUID()).contentType(MediaType.APPLICATION_JSON).content(DATOS))
                 .andExpect(status().isCreated()).andExpect(jsonPath("$.total").value(49.28));
-        verify(compras).crear(any(), argThat(d -> d.clienteId() == 10L && d.detalles().size() == 2));
+        verify(compras).crear(any(), argThat(d -> d.clienteId() == null && d.detalles().size() == 2));
     }
     @Test void actualizar200() throws Exception {
         when(servicio.actualizar(eq(1L), any())).thenReturn(respuesta);
@@ -78,7 +78,7 @@ class BoletaControllerTest {
     }
     @Test void validaDtoEnPostYPutAntesDelServicio() throws Exception {
         var invalidos = List.of(
-                DATOS.replace("\"clienteId\":10", "\"clienteId\":null"),
+                DATOS.replace("Invitado prueba", "x".repeat(151)),
                 DATOS.replace("Direccion 123", " "), DATOS.replace("Comuna", " "),
                 DATOS.replace("PENDIENTE", " "),
                 DATOS.replace("2026-01-01T12:00:00", "fecha-invalida"),

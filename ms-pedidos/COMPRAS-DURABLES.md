@@ -98,3 +98,25 @@ La clave interna y HTTPS siguen siendo requisitos del transporte. Gateway no se
 modifico: su CORS actual no permite Idempotency-Key. Antes de conectar el navegador,
 el responsable de Gateway debe permitir esa cabecera. Las llamadas directas de pruebas
 no comprueban CORS del navegador.
+
+
+## Identidad y compra invitada (RF-08)
+
+POST `/api/v1/boletas` identifica al rol CLIENTE por `UsuarioToken.id()`,
+independientemente del `clienteId` enviado. Un token CLIENTE sin ID válido recibe 403.
+Sin autenticación se descarta `clienteId` y se exigen `nombreInvitado` (hasta 150),
+`correoInvitado` (correo válido, hasta 254) y `telefonoInvitado` (6 a 30 caracteres,
+números, espacios, +, paréntesis o guiones). Los demás campos y la cabecera
+`Idempotency-Key` conservan sus reglas.
+
+El contacto se guarda en la solicitud durable y se copia a la boleta al confirmar,
+incluso durante recuperación. Los campos nuevos nulos se omiten al serializar la
+solicitud, conservando el contenido usado para comparar claves históricas.
+GET de boletas filtra por cliente; consultar una boleta ajena o su stock devuelve
+403. Los PUT siguen reservados a los roles operativos existentes.
+
+El esquema de `ms-pedidos` debe permitir NULL en `boletas.cliente_id` y agregar
+las columnas opcionales `nombre_invitado` VARCHAR(150), `correo_invitado`
+VARCHAR(254) y `telefono_invitado` VARCHAR(30). Las filas existentes se conservan.
+Revisar este ajuste antes de desplegar sobre un esquema administrado manualmente;
+no se ejecutó ninguna migración sobre bases externas durante estas correcciones.

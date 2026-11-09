@@ -43,7 +43,7 @@ class BoletaValidationTest {
                 .map(v -> v.getPropertyPath().toString()).toList();
         assertTrue(campos.containsAll(List.of("clienteId", "repartidorId", "direccion", "comuna", "estado", "fecha", "total")));
         boleta.setClienteId(null);
-        assertFalse(factory.getValidator().validateProperty(boleta, "clienteId").isEmpty());
+        assertTrue(factory.getValidator().validateProperty(boleta, "clienteId").isEmpty());
     }
 
     @Test void validaLimitesDeTextos() {
