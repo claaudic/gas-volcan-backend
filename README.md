@@ -38,19 +38,89 @@ gas-volcan-backend/
 
 ## Encender todo con Docker (un solo comando)
 
-Además de usar IntelliJ, todo el backend (MySQL + 3 microservicios + Gateway) se puede encender con Docker. Así se despliega en la EC2.
+Además de usar IntelliJ, todo el sistema (MySQL + 3 microservicios + Gateway + la tienda React) se puede encender con Docker. Así se despliega en la EC2 (ver [Despliegue en AWS EC2](#despliegue-en-aws-ec2)).
 
 ```bash
 cp .env.example .env          # solo la primera vez; escribir las claves reales
-docker compose up -d --build  # construye y enciende los 5 servicios
-docker compose ps             # deben quedar "healthy"
+docker compose up -d --build  # construye y enciende los 6 servicios
+docker compose ps             # 5 "healthy" y volcan-frontend "Up"
 ```
 
 - `Dockerfile` (uno solo, en la raíz) sirve para los 4 servicios: compila con Maven y ejecuta con Java 21, sin ser root.
-- Orden de arranque: MySQL → ms-usuarios y ms-catalogo → ms-pedidos → Gateway. Cada uno espera a que el anterior responda en `/actuator/health`.
-- Solo quedan abiertos el **Gateway (8080)** y MySQL (3306, para desarrollo). Los microservicios se hablan por dentro de Docker.
+- Orden de arranque: MySQL → ms-usuarios y ms-catalogo → ms-pedidos → Gateway → tienda. Cada uno espera a que el anterior responda en `/actuator/health`.
+- Solo quedan abiertos la **tienda (80)**, el **Gateway (8080)** y MySQL (3306, para desarrollo). Los microservicios se hablan por dentro de Docker.
+- La tienda es el frontend React servido con nginx; las llamadas a `/api` las pasa al Gateway. El compose la busca en `../tienda-react`; como en nuestro caso está dentro de `Proyecto_Volcan`, en el `.env` va `FRONTEND_CARPETA=../Proyecto_Volcan/tienda-react`.
 - Si IntelliJ ya está usando el 8080, cambiar el puerto con `GATEWAY_PUERTO=18080` en el `.env`.
 - Apagar: `docker compose down` (los datos de MySQL se mantienen en el volumen).
+
+## Despliegue en AWS EC2
+
+El sistema completo (6 contenedores) corre en una sola instancia EC2 con Docker Compose.
+
+### 1. Crear la instancia
+
+| Opción | Valor |
+|---|---|
+| Cuenta | AWS Academy Learner Lab, región `us-east-1` |
+| Sistema | Ubuntu Server 24.04 |
+| Tipo | `t3.medium` (2 vCPU, 4 GB: Maven y 4 servicios Java necesitan memoria) |
+| Disco | 20 GiB |
+| Par de claves | `vockey` |
+
+Puertos del grupo de seguridad:
+
+| Puerto | Para qué | Origen |
+|---|---|---|
+| 22 | SSH (conectarse a la instancia) | Mi IP |
+| 80 | Tienda | 0.0.0.0/0 |
+| 8080 | Gateway y Swagger (opcional) | 0.0.0.0/0 |
+| 3306 | MySQL | **No se abre**: solo se usa dentro de Docker |
+
+### 2. Instalar Docker y Git
+
+```bash
+sudo apt-get update && sudo apt-get install -y docker.io docker-compose-v2 git
+sudo usermod -aG docker ubuntu   # después salir (exit) y volver a conectarse
+```
+
+### 3. Clonar los dos repositorios, uno al lado del otro
+
+```bash
+cd ~
+git clone https://github.com/claaudic/gas-volcan-backend.git
+git clone https://github.com/claaudic/Proyecto_Volcan.git
+```
+
+### 4. Crear el `.env`
+
+El `.env` guarda las claves y **no se sube a GitHub** (está en `.gitignore`). Se crea en la instancia a partir del ejemplo:
+
+```bash
+cd ~/gas-volcan-backend
+cp .env.example .env
+nano .env   # claves nuevas, distintas a las de desarrollo, y FRONTEND_CARPETA=../Proyecto_Volcan/tienda-react
+```
+
+### 5. Encender y comprobar
+
+```bash
+docker compose up -d --build   # la primera vez tarda varios minutos
+docker compose ps              # 5 en (healthy) y volcan-frontend en Up
+curl http://localhost:8080/actuator/health   # {"status":"UP"}
+```
+
+### 6. Abrir
+
+- Tienda: `http://<IP-PÚBLICA>`
+- Swagger: `http://<IP-PÚBLICA>:8080/swagger-ui.html`
+
+La IP pública aparece en el detalle de la instancia en la consola de EC2.
+
+### 7. Advertencias
+
+- **La IP pública cambia** cada vez que se inicia el lab. Por eso la tienda llama a `/api` (misma dirección que la página) y no a una IP fija.
+- La sesión del Learner Lab dura **4 horas** y el crédito es limitado: al terminar, detener la instancia (**Stop**) o usar **End Lab**. Nunca **Terminate**, porque borra la instancia.
+- Al volver a iniciar el lab: conectarse, entrar a `~/gas-volcan-backend`, ejecutar `docker compose up -d` y buscar la nueva IP.
 
 ## Base de datos (MySQL en Docker)
 
