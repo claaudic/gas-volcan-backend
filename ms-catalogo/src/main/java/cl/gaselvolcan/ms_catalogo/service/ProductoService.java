@@ -51,13 +51,30 @@ public class ProductoService {
         return guardar(producto);
     }
 
-    public ProductoRespuesta actualizar(Long id, ProductoSolicitud datos) {
-        Producto producto = obtener(id);
-        validador.validar(datos);
+    public ProductoRespuesta actualizar(Long id, ProductoActualizacionSolicitud solicitud) {
+        validador.validar(solicitud);
+        Producto producto = obtenerBloqueado(id);
+        if (!solicitud.versionEsperada().equals(producto.getVersion())) {
+            throw new ConflictoVersionProductoException();
+        }
+        ProductoSolicitud datos = solicitud.datos();
         String codigo = datos.codigo().trim();
         if (repositorio.existsByCodigoAndIdNot(codigo, id)) throw new SolicitudInvalidaException("Ya existe un producto con ese codigo.");
         copiar(datos, producto, codigo);
         return guardar(producto);
+    }
+
+    public ProductoRespuesta cambiarEstado(Long id, EstadoProductoSolicitud datos) {
+        validador.validar(datos);
+        Producto producto = obtenerBloqueado(id);
+        producto.setActivo(datos.activo());
+        return guardar(producto);
+    }
+
+    private Producto obtenerBloqueado(Long id) {
+        validador.validarId(id);
+        return repositorio.bloquear(id).orElseThrow(
+                () -> new RecursoNoEncontradoException("No existe un producto con id " + id + "."));
     }
 
     public void eliminar(Long id) {

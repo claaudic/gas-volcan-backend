@@ -66,6 +66,14 @@ class OpenApiIntegrationTest {
                 .andExpect(jsonPath("$.paths['/api/v1/productos'].get.security").isEmpty())
                 .andExpect(jsonPath("$.paths['/api/v1/productos'].post.security[0].bearerJWT").exists())
                 .andExpect(jsonPath("$.paths['/api/v1/productos/{id}'].put.responses['409']").exists())
+                .andExpect(jsonPath("$.paths['/api/v1/productos/{id}/estado'].put.security[0].bearerJWT").exists())
+                .andExpect(jsonPath("$.paths['/api/v1/productos/{id}/estado'].put.responses['400']").exists())
+                .andExpect(jsonPath("$.paths['/api/v1/productos/{id}/estado'].put.responses['404']").exists())
+                .andExpect(jsonPath("$.components.schemas.ProductoRespuesta.properties.version").exists())
+                .andExpect(jsonPath("$.components.schemas.ProductoActualizacionSolicitud.required",
+                        org.hamcrest.Matchers.hasItem("versionEsperada")))
+                .andExpect(jsonPath("$.components.schemas.ProductoActualizacionSolicitud.properties.versionEsperada.minimum").value(0))
+                .andExpect(jsonPath("$.components.schemas.EstadoProductoSolicitud.required", org.hamcrest.Matchers.hasItem("activo")))
                 .andExpect(jsonPath("$.paths['/api/v1/productos/{id}/disponibilidad'].get.parameters").isNotEmpty())
                 .andExpect(jsonPath("$.paths['/api/v1/categorias/{id}'].delete.responses['204']").exists())
                 .andReturn().getResponse().getContentAsString();

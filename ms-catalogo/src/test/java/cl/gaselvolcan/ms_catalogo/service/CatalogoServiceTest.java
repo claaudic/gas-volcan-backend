@@ -36,8 +36,10 @@ class CatalogoServiceTest {
         categoria.setId(1L);
         producto = new Producto("TEST", "Prueba", null, BigDecimal.TEN, BigDecimal.ONE, 5, categoria);
         producto.setId(2L);
+        org.springframework.test.util.ReflectionTestUtils.setField(producto, "version", 0L);
         when(categorias.findById(1L)).thenReturn(Optional.of(categoria));
         when(productos.findById(2L)).thenReturn(Optional.of(producto));
+        when(productos.bloquear(2L)).thenReturn(Optional.of(producto));
         when(categorias.saveAndFlush(any(Categoria.class))).thenAnswer(call -> call.getArgument(0));
         when(productos.saveAndFlush(any(Producto.class))).thenAnswer(call -> call.getArgument(0));
     }
@@ -46,6 +48,9 @@ class CatalogoServiceTest {
         return new ProductoSolicitud(codigo, " Nombre ", "Descripcion", residencial, comercial, stock, activo, categoriaId);
     }
     ProductoSolicitud solicitud(String codigo) { return solicitud(codigo, BigDecimal.TEN, BigDecimal.ONE, 0, true, 1L); }
+    ProductoRespuesta actualizar(Long id, ProductoSolicitud datos) {
+        return productoService.actualizar(id, new ProductoActualizacionSolicitud(datos, 0L));
+    }
 
     @Test void crearCategoriaLimpiaNombreYDevuelveDto() {
         var respuesta = categoriaService.crear(new CategoriaSolicitud(" Nueva ", "Descripcion"));
@@ -101,7 +106,7 @@ class CatalogoServiceTest {
     @Test void actualizarProductoPermiteCodigoPropioYCambiaCategoria() {
         var otra = new Categoria("Otra", null); otra.setId(3L);
         when(categorias.findById(3L)).thenReturn(Optional.of(otra));
-        var respuesta = productoService.actualizar(2L, solicitud("TEST", BigDecimal.ZERO, BigDecimal.TEN, 8, false, 3L));
+        var respuesta = actualizar(2L, solicitud("TEST", BigDecimal.ZERO, BigDecimal.TEN, 8, false, 3L));
         assertEquals(2L, respuesta.id());
         assertEquals(3L, respuesta.categoria().id());
         assertEquals(8, respuesta.stock());
@@ -112,25 +117,25 @@ class CatalogoServiceTest {
         when(productos.existsByCodigo("TEST")).thenReturn(true);
         when(productos.existsByCodigoAndIdNot("TEST", 2L)).thenReturn(true);
         assertThrows(SolicitudInvalidaException.class, () -> productoService.crear(solicitud("TEST")));
-        assertThrows(SolicitudInvalidaException.class, () -> productoService.actualizar(2L, solicitud("TEST")));
+        assertThrows(SolicitudInvalidaException.class, () -> actualizar(2L, solicitud("TEST")));
         verify(productos, never()).saveAndFlush(any());
     }
     @Test void manejaCodigoDuplicadoConcurrenteAlCrearYActualizar() {
         when(productos.saveAndFlush(any())).thenThrow(new DataIntegrityViolationException("unique"));
         assertThrows(SolicitudInvalidaException.class, () -> productoService.crear(solicitud("TEST")));
-        assertThrows(SolicitudInvalidaException.class, () -> productoService.actualizar(2L, solicitud("TEST")));
+        assertThrows(SolicitudInvalidaException.class, () -> actualizar(2L, solicitud("TEST")));
     }
     @Test void rechazaCategoriaInexistenteAlCrearYActualizarProducto() {
         var datos = solicitud("TEST", BigDecimal.ONE, BigDecimal.TEN, 1, true, 99L);
         assertThrows(RecursoNoEncontradoException.class, () -> productoService.crear(datos));
-        assertThrows(RecursoNoEncontradoException.class, () -> productoService.actualizar(2L, datos));
+        assertThrows(RecursoNoEncontradoException.class, () -> actualizar(2L, datos));
         verify(productos, never()).saveAndFlush(any());
         assertEquals("Prueba", producto.getNombre());
     }
     @Test void rechazaPreciosNegativosNulosYConMasDeDosDecimales() {
         for (BigDecimal precio : new BigDecimal[] {null, new BigDecimal("-1"), new BigDecimal("1.001"), new BigDecimal("100000000000000000")}) {
             assertThrows(SolicitudInvalidaException.class, () -> productoService.crear(solicitud("TEST", precio, BigDecimal.ONE, 1, true, 1L)));
-            assertThrows(SolicitudInvalidaException.class, () -> productoService.actualizar(2L, solicitud("TEST", BigDecimal.ONE, precio, 1, true, 1L)));
+            assertThrows(SolicitudInvalidaException.class, () -> actualizar(2L, solicitud("TEST", BigDecimal.ONE, precio, 1, true, 1L)));
         }
         verify(productos, never()).saveAndFlush(any());
     }
@@ -151,7 +156,7 @@ class CatalogoServiceTest {
     }
     @Test void recursosInexistentesEnBuscarActualizarYEliminar() {
         assertThrows(RecursoNoEncontradoException.class, () -> productoService.buscarPorId(99L));
-        assertThrows(RecursoNoEncontradoException.class, () -> productoService.actualizar(99L, solicitud("TEST")));
+        assertThrows(RecursoNoEncontradoException.class, () -> actualizar(99L, solicitud("TEST")));
         assertThrows(RecursoNoEncontradoException.class, () -> productoService.eliminar(99L));
         assertThrows(RecursoNoEncontradoException.class, () -> categoriaService.buscarPorId(99L));
         assertThrows(RecursoNoEncontradoException.class, () -> categoriaService.actualizar(99L, new CategoriaSolicitud("Prueba", null)));
@@ -177,14 +182,14 @@ class CatalogoServiceTest {
     @Test void nuevosCamposSeGuardanYSeDevuelvenAlCrearYActualizar() {
         var datos = new ProductoSolicitud("TEST", "Prueba", "Descripcion", BigDecimal.TEN, BigDecimal.TEN,
                 7, true, 1L, new BigDecimal("8.50"), "Oferta", 2, "Kit", "/img/test.jpg");
-        for (var respuesta : List.of(productoService.crear(datos), productoService.actualizar(2L, datos))) {
+        for (var respuesta : List.of(productoService.crear(datos), actualizar(2L, datos))) {
             assertEquals(new BigDecimal("8.50"), respuesta.precioOferta());
             assertEquals("Oferta", respuesta.etiquetaOferta());
             assertEquals(2, respuesta.stockCritico());
             assertEquals("Kit", respuesta.unidad());
             assertEquals("/img/test.jpg", respuesta.imagen());
         }
-        var sinOferta = productoService.actualizar(2L, solicitud("TEST"));
+        var sinOferta = actualizar(2L, solicitud("TEST"));
         assertNull(sinOferta.precioOferta());
         assertNull(sinOferta.etiquetaOferta());
     }

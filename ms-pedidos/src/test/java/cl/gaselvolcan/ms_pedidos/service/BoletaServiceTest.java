@@ -43,6 +43,7 @@ class BoletaServiceTest {
         existente.setId(1L);
         existente.agregarDetalle(new DetalleBoleta(100L, 1, BigDecimal.TEN));
         when(repositorio.findById(1L)).thenReturn(Optional.of(existente));
+        when(repositorio.bloquear(1L)).thenReturn(Optional.of(existente));
         when(repositorio.saveAndFlush(any(Boleta.class))).thenAnswer(c -> {
             Boleta boleta = c.getArgument(0); if (boleta.getId() == null) boleta.setId(1L); return boleta;
         });

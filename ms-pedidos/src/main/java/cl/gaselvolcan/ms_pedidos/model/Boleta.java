@@ -128,6 +128,7 @@ public class Boleta {
     }
 
     public Long getId() { return id; }
+    public Long getVersion() { return version; }
     public void setId(Long id) { this.id = id; }
     public Long getClienteId() { return clienteId; }
     public void setClienteId(Long clienteId) { this.clienteId = clienteId; }

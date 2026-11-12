@@ -43,6 +43,9 @@ import jakarta.validation.Validator;
 })
 class CompraIntegrationTest {
     @Autowired CompraService compras;
+    @Autowired GestionBoletaService gestion;
+    @org.springframework.test.context.bean.override.mockito.MockitoBean
+    cl.gaselvolcan.ms_pedidos.client.UsuariosPedidosClient usuariosPedidos;
     @Autowired BoletaService servicio;
     @Autowired OperacionCompraRepository operaciones;
     @Autowired BoletaRepository boletas;
@@ -89,6 +92,52 @@ class CompraIntegrationTest {
     }
     private CompraService reiniciarCoordinador() { return new CompraService(operaciones, boletas, servicio, stock, validator, manager); }
     private String estado(UUID id) { return operaciones.findById(id.toString()).orElseThrow().getEstado(); }
+
+    private void comoAdministrador() {
+        org.springframework.security.core.context.SecurityContextHolder.getContext().setAuthentication(
+            new org.springframework.security.authentication.UsernamePasswordAuthenticationToken("admin-prueba", null,
+                List.of(new org.springframework.security.core.authority.SimpleGrantedAuthority("ROLE_ADMINISTRADOR"))));
+    }
+
+    @Test void asignacionConCompraAcreditadaConservaStockContenidoIdempotenteYBoleta() {
+        UUID clave = UUID.randomUUID(); var b = compras.crear(clave, datos());
+        String contenido = operaciones.findById(clave.toString()).orElseThrow().getSolicitud();
+        when(usuariosPedidos.consultar(12L)).thenReturn(new cl.gaselvolcan.ms_pedidos.client.UsuariosPedidosClient.UsuarioPedido(
+                12L, "Repartidor Prueba", "repartidor@example.test", null, "REPARTIDOR", true));
+        comoAdministrador();
+        try {
+            var actual = gestion.asignar(b.id(), new cl.gaselvolcan.ms_pedidos.dto.AsignacionRepartidorSolicitud(12L, 0L));
+            assertEquals(12L, actual.boleta().repartidorId());
+            assertEquals(b.detalles(), actual.boleta().detalles()); assertEquals(b.total(), actual.boleta().total());
+            assertEquals(1, descuentos.get()); assertEquals(0, compensaciones.get()); assertEquals(1, boletas.count());
+            assertEquals(contenido, operaciones.findById(clave.toString()).orElseThrow().getSolicitud());
+            assertEquals(b.id(), compras.crear(clave, datos()).id());
+        } finally { org.springframework.security.core.context.SecurityContextHolder.clearContext(); }
+    }
+
+    @Test void anulacionRepetidaRecuperaCompensacionFallidaSinBorrarNiComprarOtraVez() {
+        UUID clave = UUID.randomUUID(); var b = compras.crear(clave, datos());
+        String contenido = operaciones.findById(clave.toString()).orElseThrow().getSolicitud();
+        comoAdministrador();
+        try {
+            gestion.anular(b.id(), new cl.gaselvolcan.ms_pedidos.dto.AnulacionBoletaSolicitud(0L));
+            gestion.anular(b.id(), new cl.gaselvolcan.ms_pedidos.dto.AnulacionBoletaSolicitud(0L));
+            assertEquals("COMPENSACION_PENDIENTE", estado(clave));
+            assertFalse(compras.estadoStock(b.id()).stockRestituido());
+            doThrow(new CatalogoNoDisponibleException("red simulada")).doAnswer(c -> {
+                sinTx(); var anterior = remoto.get(clave); compensaciones.incrementAndGet();
+                var resultado = new StockInternoClient.Resultado(clave.toString(), "COMPENSADO", anterior.productos(), 200, "ok");
+                remoto.put(clave, resultado); return resultado;
+            }).when(stock).compensar(clave);
+            compras.recuperarPendientes(); assertEquals("COMPENSACION_PENDIENTE", estado(clave));
+            reiniciarCoordinador().recuperarPendientes(); compras.recuperarPendientes();
+            assertTrue(compras.estadoStock(b.id()).stockRestituido());
+            assertEquals(1, descuentos.get()); assertEquals(1, compensaciones.get()); assertEquals(1, boletas.count());
+            assertEquals("CANCELADO", servicio.buscarPorId(b.id()).estado());
+            assertEquals(contenido, operaciones.findById(clave.toString()).orElseThrow().getSolicitud());
+            assertThrows(ConflictoCompraException.class, () -> compras.crear(clave, datos()));
+        } finally { org.springframework.security.core.context.SecurityContextHolder.clearContext(); }
+    }
     private String cuerpo() { return """
             {"clienteId":10,"direccion":"D","comuna":"C","repartidorId":11,"fecha":"2026-01-01T12:00:00",
              "detalles":[{"productoId":1,"cantidad":2},{"productoId":2,"cantidad":3}]}

@@ -44,6 +44,18 @@ public class OpenApiConfig {
                         : "ADMINISTRADOR o DESPACHADORA; REPARTIDOR solo puede cambiar estado de boletas asignadas. Una boleta con stock acreditado no admite reemplazo general. Cancelar programa restitucion durable de stock.");
                 error(op, "401", "JWT ausente en ruta protegida, invalido o vencido");
                 error(op, "403", "Permisos insuficientes o boleta ajena");
+                if (path.endsWith("/repartidor")) {
+                    op.setDescription("ADMINISTRADOR o DESPACHADORA. Pedido PENDIENTE; versionEsperada entera obligatoria, admite 0. repartidorId obligatorio: ID de repartidor activo o null explicito para desasignar. No modifica stock ni detalles.");
+                    error(op, "503", "No fue posible validar la cuenta del repartidor");
+                }
+                if (path.endsWith("/anulacion")) {
+                    op.setDescription("ADMINISTRADOR o DESPACHADORA. Anulacion logica de pedido PENDIENTE con versionEsperada. Conserva historial. Repetir sobre CANCELADO no duplica compensacion. HTTP 200 confirma cancelacion comercial, no restitucion de stock: consultar /api/v1/boletas/{id}/stock.");
+                }
+                if (path.endsWith("/gestion")) {
+                    op.setDescription("Contacto y entrega solo de pedidos visibles al usuario. Invitados: contacto persistido en boleta. Autenticados: perfil actual consultado internamente; no es una instantanea historica. Respuesta no almacenable en cache. CLIENTE solo propios; REPARTIDOR solo asignados; ADMINISTRADOR y DESPACHADORA consulta operativa.");
+                    error(op, "503", "No fue posible consultar el contacto; no se inventan datos ni se utiliza respaldo local");
+                    error(op, "404", "Boleta o cuenta requerida inexistente");
+                }
                 if (comprar) {
                     exito(op, "201");
                     error(op, "503", "Catalogo no disponible u operacion pendiente: reintentar misma clave y contenido");

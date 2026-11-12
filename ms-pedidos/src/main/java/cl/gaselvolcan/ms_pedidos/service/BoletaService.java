@@ -108,7 +108,9 @@ public class BoletaService {
 
     public BoletaRespuesta actualizarEstado(Long id, EstadoBoleta destino) {
         Long repartidorId = repartidorAutenticado();
-        Boleta boleta = obtener(id);
+        if (id == null || id <= 0) throw new SolicitudInvalidaException("El id debe ser positivo.");
+        Boleta boleta = repositorio.bloquear(id).orElseThrow(
+                () -> new RecursoNoEncontradoException("No existe una boleta con id " + id + "."));
         verificarAsignacion(boleta, repartidorId);
         if (destino == EstadoBoleta.CANCELADO && "CANCELADO".equals(boleta.getEstado())
                 && boleta.getOperacionStockId() != null) return BoletaRespuesta.desde(boleta);

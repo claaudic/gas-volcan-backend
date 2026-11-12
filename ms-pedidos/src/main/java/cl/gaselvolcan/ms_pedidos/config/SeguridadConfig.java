@@ -44,6 +44,10 @@ public class SeguridadConfig {
                 // Comprar: también el visitante sin cuenta (ERS, RF-08). Si viene con
                 // sesión, el cliente se identifica con su token (UsuarioToken)
                 .requestMatchers(HttpMethod.POST, "/api/v1/boletas").permitAll()
+                .requestMatchers(HttpMethod.PUT, "/api/v1/boletas/*/repartidor").hasAnyRole("ADMINISTRADOR", "DESPACHADORA")
+                .requestMatchers(HttpMethod.PUT, "/api/v1/boletas/*/anulacion").hasAnyRole("ADMINISTRADOR", "DESPACHADORA")
+                .requestMatchers(HttpMethod.GET, "/api/v1/boletas/gestion", "/api/v1/boletas/*/gestion")
+                    .hasAnyRole("ADMINISTRADOR", "DESPACHADORA", "REPARTIDOR", "CLIENTE")
                 // Eliminar una boleta: solo el administrador
                 .requestMatchers(HttpMethod.DELETE, "/api/v1/boletas/**").hasRole("ADMINISTRADOR")
                 // Cambiar estado o repartidor: administrador, despachadora y repartidor

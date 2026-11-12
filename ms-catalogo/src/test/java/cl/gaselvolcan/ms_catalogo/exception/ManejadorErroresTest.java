@@ -5,6 +5,12 @@ import org.junit.jupiter.api.Test;
 
 class ManejadorErroresTest {
     private final ManejadorErrores manejador = new ManejadorErrores();
+    @Test void versionObsoletaSeConvierteEn409() {
+        var respuesta = manejador.versionObsoleta(new ConflictoVersionProductoException());
+        assertEquals(409, respuesta.getStatusCode().value());
+        assertEquals(409, respuesta.getBody().estado());
+        assertTrue(respuesta.getBody().mensaje().contains("Recarga"));
+    }
 
     @Test void solicitudInvalidaSeConvierteEn400() {
         var respuesta = manejador.solicitudInvalida(new SolicitudInvalidaException("Codigo duplicado"));
