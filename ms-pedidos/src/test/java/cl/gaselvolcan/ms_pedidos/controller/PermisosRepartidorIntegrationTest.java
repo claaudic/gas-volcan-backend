@@ -249,9 +249,14 @@ class PermisosRepartidorIntegrationTest {
     }
 
     @Test void cancelarConservaLaBoletaSinRestituirStock() throws Exception {
+        // /estado ya no cancela: la unica puerta es /anulacion
         mvc.perform(put(RUTA + "/" + propia + "/estado").header("Authorization", token(99L, "ADMINISTRADOR", false))
                         .contentType(MediaType.APPLICATION_JSON).content("{\"estado\":\"CANCELADO\"}"))
-                .andExpect(status().isOk()).andExpect(jsonPath("$.estado").value("CANCELADO"));
+                .andExpect(status().isBadRequest());
+        Long version = repositorio.findById(propia).orElseThrow().getVersion();
+        mvc.perform(put(RUTA + "/" + propia + "/anulacion").header("Authorization", token(99L, "ADMINISTRADOR", false))
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"versionEsperada\":" + version + "}"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.boleta.estado").value("CANCELADO"));
         em.clear();
         assertEquals("CANCELADO", repositorio.findById(propia).orElseThrow().getEstado());
         assertEquals(1, repositorio.findById(propia).orElseThrow().getDetalles().size());

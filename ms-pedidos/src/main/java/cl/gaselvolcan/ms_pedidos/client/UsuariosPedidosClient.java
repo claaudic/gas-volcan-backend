@@ -5,7 +5,9 @@ import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.Date;
 import javax.crypto.Mac;
+import javax.crypto.SecretKey;
 import javax.crypto.spec.SecretKeySpec;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
@@ -19,11 +21,13 @@ import io.jsonwebtoken.security.Keys;
 @Component
 public class UsuariosPedidosClient {
     public record UsuarioPedido(Long id, String nombre, String correo, String telefono, String rol, Boolean activo) {}
+    // Debe ser la misma etiqueta que usa FiltroPedidosInterno en ms-usuarios
+    private static final String ETIQUETA_CLAVE = "gas-volcan:pedidos-usuarios:v1";
     private final RestClient http;
-    private final javax.crypto.SecretKey clave;
+    private final SecretKey clave;
 
-    @org.springframework.beans.factory.annotation.Autowired
-    public UsuariosPedidosClient(@Value("${pedidos.usuarios.url:http://ms-usuarios:8081}") URI url,
+    @Autowired
+    public UsuariosPedidosClient(@Value("${pedidos.usuarios.url}") URI url,
             @Value("${jwt.secret}") String secreto) {
         this(new CatalogoConfig().catalogoRestClient(url, Duration.ofSeconds(2), Duration.ofSeconds(5)), secreto);
     }
@@ -35,8 +39,10 @@ public class UsuariosPedidosClient {
             if (secreto == null || secreto.getBytes(StandardCharsets.UTF_8).length < 32) throw new IllegalArgumentException();
             var mac = Mac.getInstance("HmacSHA256");
             mac.init(new SecretKeySpec(secreto.getBytes(StandardCharsets.UTF_8), "HmacSHA256"));
-            clave = Keys.hmacShaKeyFor(mac.doFinal("gas-volcan:pedidos-usuarios:v1".getBytes(StandardCharsets.UTF_8)));
-        } catch (Exception error) { throw new IllegalStateException("No se pudo configurar la autenticacion interna de usuarios."); }
+            clave = Keys.hmacShaKeyFor(mac.doFinal(ETIQUETA_CLAVE.getBytes(StandardCharsets.UTF_8)));
+        } catch (Exception error) {
+            throw new IllegalStateException("No se pudo configurar la autenticacion interna de usuarios.", error);
+        }
     }
 
     public UsuarioPedido consultar(Long id) {

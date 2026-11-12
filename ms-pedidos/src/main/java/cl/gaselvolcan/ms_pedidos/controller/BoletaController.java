@@ -27,6 +27,7 @@ import cl.gaselvolcan.ms_pedidos.config.UsuarioToken;
 import cl.gaselvolcan.ms_pedidos.dto.BoletaRespuesta;
 import cl.gaselvolcan.ms_pedidos.dto.BoletaSolicitud;
 import cl.gaselvolcan.ms_pedidos.dto.EstadoBoletaSolicitud;
+import cl.gaselvolcan.ms_pedidos.model.EstadoBoleta;
 import cl.gaselvolcan.ms_pedidos.exception.SolicitudInvalidaException;
 import cl.gaselvolcan.ms_pedidos.service.BoletaService;
 import cl.gaselvolcan.ms_pedidos.service.CompraService.EstadoStock;
@@ -87,9 +88,13 @@ public class BoletaController {
         return servicio.actualizar(id, datos);
     }
 
-    @Operation(summary = "Cambiar estado comercial o cancelar boleta")
+    @Operation(summary = "Cambiar estado de la boleta (para cancelar se usa /anulacion)")
     @PutMapping("/{id}/estado")
     public BoletaRespuesta actualizarEstado(@PathVariable Long id, @Valid @RequestBody EstadoBoletaSolicitud datos) {
+        // Cancelar tiene una sola puerta: /anulacion, que revisa rol y version
+        if (datos.estado() == EstadoBoleta.CANCELADO) {
+            throw new SolicitudInvalidaException("Para cancelar un pedido usa PUT /api/v1/boletas/{id}/anulacion.");
+        }
         return servicio.actualizarEstado(id, datos.estado());
     }
 
