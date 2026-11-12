@@ -49,7 +49,7 @@ public class OpenApiConfig {
                     error(op, "503", "No fue posible validar la cuenta del repartidor");
                 }
                 if (path.endsWith("/anulacion")) {
-                    op.setDescription("Solo ADMINISTRADOR. Anulacion logica de pedido PENDIENTE con versionEsperada. Conserva historial. Repetir sobre CANCELADO no duplica compensacion. HTTP 200 confirma cancelacion comercial, no restitucion de stock: consultar /api/v1/boletas/{id}/stock.");
+                    op.setDescription("ADMINISTRADOR o DESPACHADORA. Anulacion logica de pedido PENDIENTE con versionEsperada. Conserva historial. Repetir sobre CANCELADO no duplica compensacion. HTTP 200 confirma cancelacion comercial, no restitucion de stock: consultar /api/v1/boletas/{id}/stock.");
                 }
                 if (path.endsWith("/gestion")) {
                     op.setDescription("Contacto y entrega solo de pedidos visibles al usuario. Invitados: contacto persistido en boleta. Autenticados: perfil actual consultado internamente; no es una instantanea historica. Respuesta no almacenable en cache. CLIENTE solo propios; REPARTIDOR solo asignados; ADMINISTRADOR y DESPACHADORA consulta operativa.");

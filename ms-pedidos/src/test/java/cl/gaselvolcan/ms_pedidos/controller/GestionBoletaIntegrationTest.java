@@ -27,6 +27,8 @@ import org.springframework.transaction.support.TransactionTemplate;
 import cl.gaselvolcan.ms_pedidos.client.*;
 import cl.gaselvolcan.ms_pedidos.config.UsuarioToken;
 import cl.gaselvolcan.ms_pedidos.dto.*;
+import cl.gaselvolcan.ms_pedidos.exception.RecursoNoEncontradoException;
+import cl.gaselvolcan.ms_pedidos.exception.CatalogoNoDisponibleException;
 import cl.gaselvolcan.ms_pedidos.model.*;
 import cl.gaselvolcan.ms_pedidos.repository.BoletaRepository;
 import cl.gaselvolcan.ms_pedidos.service.GestionBoletaService;
@@ -114,7 +116,7 @@ class GestionBoletaIntegrationTest {
         mvc.perform(get(ruta("gestion"))).andExpect(status().isUnauthorized());
         mvc.perform(put(ruta("repartidor")).with(authentication(identidad("REPARTIDOR", 4)))
                 .contentType(MediaType.APPLICATION_JSON).content(asignacion(0))).andExpect(status().isForbidden());
-        mvc.perform(put(ruta("anulacion")).with(authentication(identidad("DESPACHADORA", 2)))
+        mvc.perform(put(ruta("anulacion")).with(authentication(identidad("REPARTIDOR", 4)))
                 .contentType(MediaType.APPLICATION_JSON).content("{\"versionEsperada\":0}")).andExpect(status().isForbidden());
         mvc.perform(get(ruta("gestion")).with(authentication(identidad("OTRO", 2)))).andExpect(status().isForbidden());
     }
@@ -143,6 +145,23 @@ class GestionBoletaIntegrationTest {
         mvc.perform(get("/api/v1/boletas/gestion").with(authentication(identidad("REPARTIDOR", 8))))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.length()").value(0));
         verifyNoInteractions(usuarios);
+    }
+    @Test void despachadoraPuedeAnularUnPedidoPendiente() throws Exception {
+        mvc.perform(put(ruta("anulacion")).with(authentication(identidad("DESPACHADORA", 2)))
+                .contentType(MediaType.APPLICATION_JSON).content("{\"versionEsperada\":0}"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.boleta.estado").value("CANCELADO"));
+    }
+    @Test void cuentaBorradaNoImpideVerElListado() throws Exception {
+        when(usuarios.consultar(10L)).thenThrow(new RecursoNoEncontradoException("No existe la cuenta asociada al pedido."));
+        mvc.perform(get("/api/v1/boletas/gestion").with(authentication(identidad("DESPACHADORA", 2))))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.length()").value(1))
+                .andExpect(jsonPath("$[0].cliente.nombre").value("Cuenta eliminada"))
+                .andExpect(jsonPath("$[0].cliente.correo").doesNotExist());
+    }
+    @Test void usuariosApagadoNoImpideVerElListado() throws Exception {
+        when(usuarios.consultar(10L)).thenThrow(new CatalogoNoDisponibleException("Usuarios no disponible"));
+        mvc.perform(get("/api/v1/boletas/gestion").with(authentication(identidad("ADMINISTRADOR", 1))))
+                .andExpect(status().isOk()).andExpect(jsonPath("$[0].cliente.nombre").value("Datos del cliente no disponibles"));
     }
     @Test void anulacionLogicaEsRepetibleYNoBorraElHistorial() throws Exception {
         for (int n = 0; n < 2; n++) mvc.perform(put(ruta("anulacion")).with(authentication(identidad("ADMINISTRADOR", 1)))

@@ -41,11 +41,22 @@ public class GestionBoletaService {
         var b = lectura.boleta();
         var cliente = lectura.invitado();
         if (b.clienteId() != null) {
-            var u = cache.computeIfAbsent(b.clienteId(), usuarios::consultar);
-            cliente = new GestionBoletaRespuesta.Comprador(u.nombre(), u.correo(), u.telefono());
+            cliente = comprador(b.clienteId(), cache);
         }
         return new GestionBoletaRespuesta(b, lectura.version(), cliente,
                 new GestionBoletaRespuesta.Entrega(b.direccion(), b.comuna()));
+    }
+    // Si la cuenta se borró o ms-usuarios no responde, la boleta se muestra igual con un aviso,
+    // para que un solo cliente no deje a la despachadora sin ver ningún pedido.
+    private GestionBoletaRespuesta.Comprador comprador(Long clienteId, Map<Long, UsuariosPedidosClient.UsuarioPedido> cache) {
+        try {
+            var usuario = cache.computeIfAbsent(clienteId, usuarios::consultar);
+            return new GestionBoletaRespuesta.Comprador(usuario.nombre(), usuario.correo(), usuario.telefono());
+        } catch (RecursoNoEncontradoException error) {
+            return new GestionBoletaRespuesta.Comprador("Cuenta eliminada", null, null);
+        } catch (CatalogoNoDisponibleException error) {
+            return new GestionBoletaRespuesta.Comprador("Datos del cliente no disponibles", null, null);
+        }
     }
     public List<GestionBoletaRespuesta> listar() {
         exigirRol("ADMINISTRADOR", "DESPACHADORA", "REPARTIDOR", "CLIENTE");
@@ -86,7 +97,7 @@ public class GestionBoletaService {
         });
     }
     public VersionBoletaRespuesta anular(Long id, AnulacionBoletaSolicitud datos) {
-        exigirRol("ADMINISTRADOR");
+        exigirRol("ADMINISTRADOR", "DESPACHADORA");
         return tx.execute(s -> {
             var b = bloquear(id);
             // Repetir una anulación confirmada no programa otra compensación.

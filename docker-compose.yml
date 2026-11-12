@@ -82,6 +82,7 @@ services:
     environment:
       PEDIDOS_DB_HOST: mysql
       PEDIDOS_CATALOGO_URL: http://ms-catalogo:8082
+      PEDIDOS_USUARIOS_URL: http://ms-usuarios:8081
       MYSQL_PASSWORD: ${MYSQL_PASSWORD}
       JWT_SECRET: ${JWT_SECRET}
       INTERNAL_STOCK_JWT_SECRET: ${INTERNAL_STOCK_JWT_SECRET}
@@ -90,6 +91,8 @@ services:
       mysql:
         condition: service_healthy
       ms-catalogo:
+        condition: service_healthy
+      ms-usuarios:
         condition: service_healthy
     healthcheck:
       test: ["CMD", "curl", "-fs", "http://localhost:8083/actuator/health"]
