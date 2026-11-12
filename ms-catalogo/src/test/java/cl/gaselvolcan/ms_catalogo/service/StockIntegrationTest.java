@@ -78,6 +78,29 @@ class StockIntegrationTest {
         assertEquals(7, stock(uno)); assertEquals(1, operaciones.count());
     }
 
+    @Test void fechaDeCreacionConservaMicrosegundosTrasConsultar() {
+        UUID id = UUID.randomUUID();
+        var primera = servicio.descontar(id, solicitud(2, 3));
+        assertNotNull(primera.creada());
+        assertEquals(0, primera.creada().getNano() % 1_000);
+        assertNull(primera.compensada());
+        assertEquals(primera, servicio.consultar(id));
+        assertEquals(8, stock(uno)); assertEquals(2, stock(dos));
+        assertEquals(1, operaciones.count());
+    }
+
+    @Test void fechaDeCompensacionConservaMicrosegundosTrasConsultar() {
+        UUID id = UUID.randomUUID();
+        var descuento = servicio.descontar(id, solicitud(2, 3));
+        var primera = servicio.compensar(id);
+        assertEquals(descuento.creada(), primera.creada());
+        assertNotNull(primera.compensada());
+        assertEquals(0, primera.compensada().getNano() % 1_000);
+        assertEquals(primera, servicio.consultar(id));
+        assertEquals(10, stock(uno)); assertEquals(5, stock(dos));
+        assertEquals(1, operaciones.count());
+    }
+
     @Test void faltaDeStockNoDescuentaNingunProductoYElRechazoEsDurable() {
         UUID id = UUID.randomUUID();
         assertEquals(409, servicio.descontar(id, solicitud(2, 6)).codigoResultado());

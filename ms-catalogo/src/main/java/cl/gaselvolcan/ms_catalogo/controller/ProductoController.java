@@ -23,6 +23,8 @@ import org.springframework.web.bind.annotation.RestController;
 import jakarta.validation.Valid;
 import cl.gaselvolcan.ms_catalogo.dto.ProductoRespuesta;
 import cl.gaselvolcan.ms_catalogo.dto.ProductoSolicitud;
+import cl.gaselvolcan.ms_catalogo.dto.ProductoActualizacionSolicitud;
+import cl.gaselvolcan.ms_catalogo.dto.EstadoProductoSolicitud;
 import cl.gaselvolcan.ms_catalogo.service.ProductoService;
 
 // Recibe HTTP y delega las reglas de negocio al servicio.
@@ -76,14 +78,23 @@ public class ProductoController {
         return ResponseEntity.status(HttpStatus.CREATED).body(servicio.crear(datos));
     }
 
-    @Operation(summary = "Actualizar producto")
+    @Operation(summary = "Actualizar producto", description = "Requiere versionEsperada de la lectura original. Una version obsoleta devuelve 409 sin modificar datos.")
     @ApiResponse(responseCode = "200", description = "Operacion exitosa")
     @ApiResponse(responseCode = "404", description = "Producto o categoria inexistente", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ErrorRespuesta.class)))
     @ApiResponse(responseCode = "400", description = "Datos invalidos, duplicados o eliminacion de categoria con productos", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ErrorRespuesta.class)))
     @ApiResponse(responseCode = "500", description = "Error interno sin detalles sensibles", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ErrorRespuesta.class)))
     @PutMapping("/{id}")
-    public ProductoRespuesta actualizar(@Parameter(description = "ID positivo del recurso", example = "2") @PathVariable Long id, @Valid @RequestBody ProductoSolicitud datos) {
+    public ProductoRespuesta actualizar(@Parameter(description = "ID positivo del recurso", example = "2") @PathVariable Long id, @Valid @RequestBody ProductoActualizacionSolicitud datos) {
         return servicio.actualizar(id, datos);
+    }
+
+    @Operation(summary = "Cambiar estado del producto", description = "Solo asigna activo sobre el producto actual bajo bloqueo. Conserva stock, precios y demas atributos.")
+    @ApiResponse(responseCode = "200", description = "Estado aplicado; incluye version actual")
+    @ApiResponse(responseCode = "400", description = "ID o activo invalido")
+    @ApiResponse(responseCode = "404", description = "Producto inexistente")
+    @PutMapping("/{id}/estado")
+    public ProductoRespuesta cambiarEstado(@PathVariable Long id, @Valid @RequestBody EstadoProductoSolicitud datos) {
+        return servicio.cambiarEstado(id, datos);
     }
 
     @Operation(summary = "Eliminar producto")

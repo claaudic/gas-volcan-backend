@@ -1,6 +1,7 @@
 package cl.gaselvolcan.ms_catalogo.model;
 
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.Map;
 import java.util.TreeMap;
 import jakarta.persistence.*;
@@ -25,14 +26,14 @@ public class OperacionStock implements org.springframework.data.domain.Persistab
 
     protected OperacionStock() {}
     public OperacionStock(String id, Map<Long, Integer> productos) {
-        this.id = id; this.productos.putAll(productos); this.creada = Instant.now();
+        this.id = id; this.productos.putAll(productos); this.creada = Instant.now().truncatedTo(ChronoUnit.MICROS);
         resultado("APLICADO", 200, "Descuento aplicado.");
     }
     public void resultado(String estado, int codigo, String mensaje) {
         this.estado = estado; this.codigoResultado = codigo; this.mensaje = mensaje;
     }
     public void compensar() {
-        resultado("COMPENSADO", 200, "Stock restituido."); compensada = Instant.now();
+        resultado("COMPENSADO", 200, "Stock restituido."); compensada = Instant.now().truncatedTo(ChronoUnit.MICROS);
     }
     public String getId() { return id; }
     public String getEstado() { return estado; }

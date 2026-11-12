@@ -23,6 +23,12 @@ public class ManejadorErrores {
 
     private static final Logger log = LoggerFactory.getLogger(ManejadorErrores.class);
 
+    @ExceptionHandler({ConflictoGestionBoletaException.class, org.springframework.dao.PessimisticLockingFailureException.class})
+    public ResponseEntity<ErrorRespuesta> conflictoGestion(Exception error) {
+        return responder(HttpStatus.CONFLICT, error instanceof ConflictoGestionBoletaException
+                ? error.getMessage() : "El pedido se esta modificando. Consulta su estado actual antes de reintentar.");
+    }
+
     @ExceptionHandler({ConflictoCompraException.class, org.springframework.dao.OptimisticLockingFailureException.class})
     public ResponseEntity<ErrorRespuesta> conflicto(Exception error) {
         return responder(HttpStatus.CONFLICT, "Compra en conflicto o modificada concurrentemente. Conserva la misma clave.");

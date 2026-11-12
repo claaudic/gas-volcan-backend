@@ -18,6 +18,11 @@ import org.springframework.web.servlet.resource.NoResourceFoundException;
 // Así el frontend siempre puede leer "mensaje", pase lo que pase.
 @RestControllerAdvice
 public class ManejadorErrores {
+    @ExceptionHandler(ConflictoVersionProductoException.class)
+    public ResponseEntity<ErrorRespuesta> versionObsoleta(ConflictoVersionProductoException error) {
+        return responder(HttpStatus.CONFLICT, error.getMessage());
+    }
+
     @ExceptionHandler(ConflictoStockException.class)
     public ResponseEntity<ErrorRespuesta> conflicto(ConflictoStockException error) {
         return responder(HttpStatus.CONFLICT, error.getMessage());

@@ -20,7 +20,7 @@ class ProductoControllerTest {
     private MockMvc mvc;
     private static final String RUTA = "/api/v1/productos";
     private static final String DATOS = """
-            {"codigo":"TEST","nombre":"Prueba","descripcion":"Descripcion","precioResidencial":10.00,"precioComercial":9.00,"stock":5,"activo":true,"categoriaId":1,"unidad":"Unidad","imagen":""}
+            {"codigo":"TEST","nombre":"Prueba","descripcion":"Descripcion","precioResidencial":10.00,"precioComercial":9.00,"stock":5,"activo":true,"categoriaId":1,"unidad":"Unidad","imagen":"","versionEsperada":0}
             """;
     private final ProductoRespuesta respuesta = new ProductoRespuesta(2L, "TEST", "Prueba", "Descripcion", new BigDecimal("10.00"), new BigDecimal("9.00"), 5, true, new CategoriaRespuesta(1L, "Prueba", "Descripcion"));
 

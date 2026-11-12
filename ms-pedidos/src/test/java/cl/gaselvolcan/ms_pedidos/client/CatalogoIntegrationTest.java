@@ -94,6 +94,16 @@ class CatalogoIntegrationTest {
         assertEquals(new BigDecimal("15.50"), respuesta.detalles().getFirst().precio());
         assertEquals(new BigDecimal("3.10"), respuesta.detalles().get(1).precio());
     }
+
+    @Test void lecturaDeProductoToleraVersionAdicionalSinCambiarSuContrato() {
+        String json = producto(1, true, "19.99", "15.50");
+        esperarProducto(1, json.substring(0, json.length() - 1) + ",\"version\":7}");
+        var respuesta = cliente.consultarProducto(1L);
+        assertEquals(1L, respuesta.id());
+        assertEquals(new BigDecimal("19.99"), respuesta.precioResidencial());
+        assertEquals(new BigDecimal("15.50"), respuesta.precioOferta());
+        assertTrue(respuesta.activo());
+    }
     @Test void putConsultaOtraVezPreciosYCantidadesActuales() {
         esperarProducto(1, producto(1, true, "20", "null"));
         esperarStock(1, 2, disponibilidad(1, 2, 10, true));
