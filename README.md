@@ -120,7 +120,7 @@ La IP pública aparece en el detalle de la instancia en la consola de EC2.
 
 - **La IP pública cambia** cada vez que se inicia el lab. Por eso la tienda llama a `/api` (misma dirección que la página) y no a una IP fija.
 - La sesión del Learner Lab dura **4 horas** y el crédito es limitado: al terminar, detener la instancia (**Stop**) o usar **End Lab**. Nunca **Terminate**, porque borra la instancia.
-- Al volver a iniciar el lab: conectarse, entrar a `~/gas-volcan-backend`, ejecutar `docker compose up -d` y buscar la nueva IP.
+- Al volver a iniciar el lab, los 6 contenedores se encienden solos (`restart: unless-stopped`): solo hay que buscar la nueva IP. Para revisarlos: `docker compose ps` en `~/gas-volcan-backend`.
 
 ## Base de datos (MySQL en Docker)
 
