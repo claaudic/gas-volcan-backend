@@ -19,6 +19,8 @@ services:
   mysql:
     image: mysql:8.4
     container_name: volcan-mysql
+    # Igual que los demás: si la EC2 se reinicia, MySQL vuelve a encenderse solo
+    restart: unless-stopped
     environment:
       MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
       MYSQL_USER: volcan
