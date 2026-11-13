@@ -1,6 +1,7 @@
 package cl.gaselvolcan.ms_pedidos.service;
 
 import java.time.Instant;
+import java.time.LocalDateTime;
 import java.util.*;
 import java.util.function.Consumer;
 import jakarta.validation.Validator;
@@ -78,8 +79,9 @@ public class CompraService {
         Map<Long, Integer> cantidades = new TreeMap<>();
         try { datos.detalles().forEach(d -> cantidades.merge(d.productoId(), d.cantidad(), Math::addExact)); }
         catch (ArithmeticException e) { throw new SolicitudInvalidaException("Cantidad acumulada fuera de rango."); }
+        // Al comprar nadie elige repartidor: lo asigna después la despachadora (PUT /{id}/repartidor)
         return new BoletaSolicitud(datos.clienteId(), datos.direccion().trim(), datos.comuna().trim(), "PENDIENTE",
-                datos.repartidorId(), datos.fecha(), cantidades.entrySet().stream()
+                null, datos.fecha(), cantidades.entrySet().stream()
                         .map(e -> new DetalleBoletaSolicitud(e.getKey(), e.getValue())).toList(), datos.nombreInvitado(), datos.correoInvitado(), datos.telefonoInvitado());
     }
 
@@ -127,8 +129,9 @@ public class CompraService {
             } else if ("APLICADO".equals(resultado.estado())) {
                 var precioFijo = json.readValue(cotizacion, BoletaRespuesta.class);
                 cambiar(id, dueno, "COTIZADA", o -> {
+                    // La fecha la pone el servidor al confirmar la compra, no el navegador
                     var b = new Boleta(precioFijo.clienteId(), precioFijo.direccion(), precioFijo.comuna(), "PENDIENTE",
-                            precioFijo.repartidorId(), precioFijo.fecha(), precioFijo.total());
+                            null, LocalDateTime.now(), precioFijo.total());
                     b.setNombreInvitado(datos.nombreInvitado());
                     b.setCorreoInvitado(datos.correoInvitado());
                     b.setTelefonoInvitado(datos.telefonoInvitado());

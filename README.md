@@ -46,6 +46,8 @@ docker compose up -d --build  # construye y enciende los 6 servicios
 docker compose ps             # 5 "healthy" y volcan-frontend "Up"
 ```
 
+Al terminar: tienda en `http://localhost` y Swagger en `http://localhost:8080/swagger-ui.html`.
+
 - `Dockerfile` (uno solo, en la raíz) sirve para los 4 servicios: compila con Maven y ejecuta con Java 21, sin ser root.
 - Orden de arranque: MySQL → ms-usuarios y ms-catalogo → ms-pedidos → Gateway → tienda. Cada uno espera a que el anterior responda en `/actuator/health`.
 - Solo quedan abiertos la **tienda (80)**, el **Gateway (8080)** y MySQL (3306, para desarrollo). Los microservicios se hablan por dentro de Docker.
@@ -98,7 +100,7 @@ El `.env` guarda las claves y **no se sube a GitHub** (está en `.gitignore`). S
 ```bash
 cd ~/gas-volcan-backend
 cp .env.example .env
-nano .env   # claves nuevas, distintas a las de desarrollo, y FRONTEND_CARPETA=../Proyecto_Volcan/tienda-react
+nano .env   # claves nuevas, distintas a las de desarrollo, CLAVE_CUENTAS_DEMO y FRONTEND_CARPETA=../Proyecto_Volcan/tienda-react
 ```
 
 ### 5. Encender y comprobar
@@ -182,9 +184,13 @@ Cada microservicio revisa el token por su cuenta (`config/FiltroJwt` y `config/S
 | ms-catalogo | `GET /api/v1/productos/**`, `GET /api/v1/categorias/**` | Todos (la tienda es pública) |
 | ms-catalogo | `POST · PUT · DELETE` productos y categorías | ADMINISTRADOR |
 | ms-pedidos | `POST /api/v1/boletas` (comprar) | Todos, también el visitante sin cuenta (ERS, RF-08) |
-| ms-pedidos | `GET /api/v1/boletas/**` | Cualquiera con sesión |
-| ms-pedidos | `PUT /api/v1/boletas/{id}` (estado, repartidor) | ADMINISTRADOR, DESPACHADORA, REPARTIDOR |
-| ms-pedidos | `DELETE /api/v1/boletas/{id}` | ADMINISTRADOR |
+| ms-pedidos | `GET /api/v1/boletas/**` | Cualquiera con sesión (el cliente ve solo las suyas; el repartidor, solo las asignadas) |
+| ms-pedidos | `PUT /api/v1/boletas/{id}/repartidor` (asignar) | ADMINISTRADOR, DESPACHADORA |
+| ms-pedidos | `PUT /api/v1/boletas/{id}/estado` (En camino, Entregado) | ADMINISTRADOR, DESPACHADORA, REPARTIDOR asignado |
+| ms-pedidos | `PUT /api/v1/boletas/{id}/anulacion` (cancelar un pedido pendiente) | ADMINISTRADOR, DESPACHADORA |
+
+- Las boletas **no se borran** (no hay `DELETE`): se anulan y quedan en el historial con estado `CANCELADO`, y el stock vuelve al catálogo.
+- Al comprar, la **fecha la pone el servidor** y el repartidor no se elige: lo asigna después la despachadora.
 
 - Sin token en una ruta protegida → **401**; con un rol que no corresponde → **403**; un token falso o vencido → **401** (incluso al comprar, para no comprar "como invitado" sin saberlo).
 - El token trae `sub` (correo), `id` y `rol`. En un controlador se obtiene con `@AuthenticationPrincipal UsuarioToken usuario`.
@@ -230,6 +236,8 @@ Cuentas de demostración (se cargan solas la primera vez):
 | REPARTIDOR | repartidor@gaselvolcan.cl | Repart123 |
 | REPARTIDOR | repartidor2@gaselvolcan.cl | Repart123 |
 | CLIENTE | camila@gmail.com | Clien1234 |
+
+En un servidor público conviene definir `CLAVE_CUENTAS_DEMO` en el `.env` antes del primer arranque: las 5 cuentas se crean con esa clave y no con las de esta tabla.
 
 ### Clave del JWT
 

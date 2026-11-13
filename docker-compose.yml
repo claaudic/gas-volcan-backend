@@ -47,6 +47,7 @@ services:
       USUARIOS_DB_URL: jdbc:mysql://mysql:3306/volcan_usuarios
       MYSQL_PASSWORD: ${MYSQL_PASSWORD}
       JWT_SECRET: ${JWT_SECRET}
+      CLAVE_CUENTAS_DEMO: ${CLAVE_CUENTAS_DEMO:-}
       JAVA_TOOL_OPTIONS: -Xmx384m
     healthcheck:
       test: ["CMD", "curl", "-fs", "http://localhost:8081/actuator/health"]
