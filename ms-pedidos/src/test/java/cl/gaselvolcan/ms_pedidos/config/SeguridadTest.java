@@ -139,8 +139,9 @@ class SeguridadTest {
     void ningunRolEliminaBoletas() throws Exception {
         mvc.perform(delete(BOLETAS + "/1"))
                 .andExpect(status().isUnauthorized());
+        // No existe DELETE de boletas para nadie: se anulan, no se borran
         mvc.perform(delete(BOLETAS + "/1").header(HttpHeaders.AUTHORIZATION, token("DESPACHADORA")))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isMethodNotAllowed());
 
         mvc.perform(delete(BOLETAS + "/1").header(HttpHeaders.AUTHORIZATION, token("ADMINISTRADOR")))
                 .andExpect(status().isMethodNotAllowed());

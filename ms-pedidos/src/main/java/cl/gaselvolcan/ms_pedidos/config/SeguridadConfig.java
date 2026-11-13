@@ -48,8 +48,6 @@ public class SeguridadConfig {
                 .requestMatchers(HttpMethod.PUT, "/api/v1/boletas/*/anulacion").hasAnyRole("ADMINISTRADOR", "DESPACHADORA")
                 .requestMatchers(HttpMethod.GET, "/api/v1/boletas/gestion", "/api/v1/boletas/*/gestion")
                     .hasAnyRole("ADMINISTRADOR", "DESPACHADORA", "REPARTIDOR", "CLIENTE")
-                // Eliminar una boleta: solo el administrador
-                .requestMatchers(HttpMethod.DELETE, "/api/v1/boletas/**").hasRole("ADMINISTRADOR")
                 // Cambiar estado o repartidor: administrador, despachadora y repartidor
                 .requestMatchers(HttpMethod.PUT, "/api/v1/boletas/**")
                     .hasAnyRole("ADMINISTRADOR", "DESPACHADORA", "REPARTIDOR")

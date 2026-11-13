@@ -140,7 +140,7 @@ class PermisosRepartidorIntegrationTest {
                             .contentType(MediaType.APPLICATION_JSON).content(DATOS))
                     .andExpect(status().isForbidden()).andExpect(jsonPath("$.estado").value(403));
             mvc.perform(delete(RUTA + "/" + id).header("Authorization", repartidor(11)))
-                    .andExpect(status().isForbidden());
+                    .andExpect(status().isMethodNotAllowed());
         }
         em.clear();
         assertEquals(3, repositorio.count());
@@ -225,7 +225,8 @@ class PermisosRepartidorIntegrationTest {
             for (String rol : new String[] {"ADMINISTRADOR", "DESPACHADORA", "REPARTIDOR", "CLIENTE", ""}) {
                 var peticion = delete(RUTA + "/" + propia);
                 if (!rol.isEmpty()) peticion.header("Authorization", token(11L, rol, false));
-                int esperado = rol.isEmpty() ? 401 : rol.equals("ADMINISTRADOR") ? 405 : 403;
+                // Sin token 401; con cualquier rol 405: no existe DELETE de boletas
+                int esperado = rol.isEmpty() ? 401 : 405;
                 var resultado = mvc.perform(peticion).andExpect(status().is(esperado))
                         .andExpect(jsonPath("$.estado").value(esperado)).andReturn();
                 if (esperado == 405) {

@@ -38,7 +38,7 @@ public class OpenApiConfig {
                 op.setSecurity(comprar ? List.of(new SecurityRequirement(), new SecurityRequirement().addList("bearerJWT"))
                         : List.of(new SecurityRequirement().addList("bearerJWT")));
                 op.setDescription(comprar
-                        ? "Compra publica como invitado con nombre, correo y telefono obligatorios, o con JWT CLIENTE cuya identidad prevalece sobre clienteId. Idempotency-Key UUID obligatorio; conservar clave y contenido en reintentos. Total y stock calculados por el servidor."
+                        ? "Compra publica como invitado con nombre, correo y telefono obligatorios, o con JWT CLIENTE cuya identidad prevalece sobre clienteId. Idempotency-Key UUID obligatorio; conservar clave y contenido en reintentos. Total, stock y fecha los fija el servidor; el repartidor no se elige al comprar (se asigna con /repartidor)."
                         : method == HttpMethod.GET
                         ? "Requiere sesion: CLIENTE solo sus boletas; REPARTIDOR solo las asignadas. ADMINISTRADOR y DESPACHADORA mantienen consulta operativa."
                         : "ADMINISTRADOR o DESPACHADORA; REPARTIDOR solo puede cambiar estado de boletas asignadas. Una boleta con stock acreditado no admite reemplazo general. Cancelar programa restitucion durable de stock.");
@@ -49,7 +49,13 @@ public class OpenApiConfig {
                     error(op, "503", "No fue posible validar la cuenta del repartidor");
                 }
                 if (path.endsWith("/anulacion")) {
-                    op.setDescription("ADMINISTRADOR o DESPACHADORA. Anulacion logica de pedido PENDIENTE con versionEsperada. Conserva historial. Repetir sobre CANCELADO no duplica compensacion. HTTP 200 confirma cancelacion comercial, no restitucion de stock: consultar /api/v1/boletas/{id}/stock.");
+                    op.setDescription("ADMINISTRADOR o DESPACHADORA. Anulacion logica de pedido PENDIENTE con versionEsperada. Conserva historial. Repetir sobre CANCELADO no duplica compensacion. HTTP 200 confirma cancelacion comercial, no restitucion de stock: consultar /api/v1/boletas/{id}/stock. Las boletas no se borran (no existe DELETE): se anulan para conservar el historial.");
+                }
+                if (path.endsWith("/estado")) {
+                    op.setDescription("Avanza el pedido: PENDIENTE -> EN_CAMINO -> ENTREGADO. ADMINISTRADOR, DESPACHADORA o el REPARTIDOR asignado. Para cancelar se usa /anulacion: CANCELADO aqui responde 400.");
+                }
+                if (method == HttpMethod.PUT && path.equals("/api/v1/boletas/{id}")) {
+                    op.setDescription("Solo para boletas historicas cargadas sin compra (sin descuento de stock). Una compra hecha en la tienda no se reemplaza (400): se gestiona con /estado, /repartidor y /anulacion.");
                 }
                 if (path.endsWith("/gestion")) {
                     op.setDescription("Contacto y entrega solo de pedidos visibles al usuario. Invitados: contacto persistido en boleta. Autenticados: perfil actual consultado internamente; no es una instantanea historica. Respuesta no almacenable en cache. CLIENTE solo propios; REPARTIDOR solo asignados; ADMINISTRADOR y DESPACHADORA consulta operativa.");
